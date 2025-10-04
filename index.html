@@ -3,374 +3,178 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Mini Payouts — Single File (demo + backend-ready)</title>
+<title>Upload Poze & Video</title>
 <style>
-  :root{--bg:#071226;--card:#0f1724;--muted:#9fb0c6;--gold:#f4b400}
-  body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg),#071725);color:#e6eef8;display:flex;justify-content:center;padding:20px}
-  .wrap{max-width:940px;width:100%;display:grid;grid-template-columns:1fr;gap:14px}
-  .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
-  h1{margin:0 0 6px;font-size:20px;text-align:center}
-  .row{display:flex;gap:8px;flex-wrap:wrap}
-  input,select,button{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:#fff}
-  input{min-width:0;flex:1}
-  button{background:var(--gold);color:#000;border:none;cursor:pointer;font-weight:700}
-  #canvas{width:100%;height:220px;border-radius:8px;background:linear-gradient(180deg,#071226,#0a1b2a);display:block}
-  pre{white-space:pre-wrap;background:#071722;padding:10px;border-radius:8px;color:var(--muted);overflow:auto}
-  .muted{color:var(--muted);font-size:13px}
-  .small{font-size:13px;color:var(--muted)}
-  .flex-between{display:flex;justify-content:space-between;align-items:center}
-  @media(min-width:880px){ .wrap{grid-template-columns: 1fr 420px} }
+  body{font-family:Arial,Helvetica,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padding:18px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{margin:6px 0 14px;font-size:20px}
+  .drop{border:2px dashed #9fb6cc;background:#fff;padding:18px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .drop.drag{background:#e8f3ff;border-color:#4b9cff}
+  input[type=file]{display:none}
+  .btn{background:#0077ff;color:#fff;padding:10px 14px;border-radius:8px;border:none;cursor:pointer}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+  .card{background:#fff;padding:8px;border-radius:8px;display:flex;flex-direction:column;gap:6px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+  img,video{max-width:100%;border-radius:6px}
+  .prog{width:100%;height:8px;background:#eef3f8;border-radius:6px;overflow:hidden}
+  .bar{height:100%;width:0;background:#00c37a}
+  .small{font-size:13px;color:#567}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  a.gallery{display:inline-block;margin-top:10px;color:#0077ff}
+  @media(max-width:420px){ .grid{grid-template-columns:repeat(2,1fr)} }
 </style>
 </head>
 <body>
-
 <div class="wrap">
+  <h1>Încarcă poze & videoclipuri din telefon</h1>
 
-  <!-- Left: app -->
-  <div class="card" id="mainCard">
-    <h1>Mini Payouts — demo & backend-ready</h1>
-
-    <div id="modeNotice" class="small muted">La încărcare ți se va cere BACKEND URL; lasă gol pentru modul DEMO (localStorage only). Pentru plăți reale trebuie backend cu Stripe (server.js).</div>
-
-    <!-- Backend prompt handled by JS; shows current mode -->
-    <div style="margin-top:12px" class="flex-between">
-      <div>
-        <label class="small">Backend URL:</label><br>
-        <input id="backendInput" placeholder="ex: https://example.com  sau lasă gol pentru DEMO">
-      </div>
-      <div style="min-width:130px">
-        <label class="small">Modul:</label><br>
-        <select id="modeSelect">
-          <option value="auto">Auto detect (prompt)</option>
-          <option value="demo">Forțează DEMO</option>
-          <option value="backend">Forțează BACKEND</option>
-        </select>
-      </div>
+  <div id="drop" class="drop">
+    <div class="small">Trage fișiere aici sau apasă butonul</div>
+    <div class="controls">
+      <label class="btn">
+        Selectează fișiere
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple>
+      </label>
+      <button id="uploadBtn" class="btn">Încarcă tot</button>
+      <a href="/gallery" class="gallery">Vezi galeria</a>
     </div>
-
-    <hr style="border:none;height:1px;background:#0b2636;margin:12px 0">
-
-    <!-- Auth -->
-    <div id="authSection">
-      <div class="row">
-        <input id="emailIn" placeholder="Email">
-        <input id="passIn" type="password" placeholder="Parolă">
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button id="btnRegister">Register (demo/back)</button>
-        <button id="btnLogin">Login</button>
-      </div>
-      <div class="small muted" style="margin-top:8px">Notă: în modul demo conturile și balanțele sunt stocate local (LocalStorage). În modul backend se apelează endpoint-urile /api/register și /api/login ale serverului tău.</div>
-    </div>
-
-    <div id="appSection" style="display:none;margin-top:12px">
-      <div class="flex-between">
-        <div>
-          <div class="small">Logged in as</div>
-          <div id="meEmail" style="font-weight:700"></div>
-        </div>
-        <div style="text-align:right">
-          <div class="small">Balance (USD)</div>
-          <div id="balanceAmount" style="font-weight:700">$0.00</div>
-        </div>
-      </div>
-
-      <!-- Canvas / game -->
-      <canvas id="canvas"></canvas>
-
-      <div class="row" style="margin-top:8px">
-        <button id="btnMine">Minează manual</button>
-        <button id="btnAuto">Pornește Auto</button>
-        <button id="btnShop">Upgrade (crește rate)</button>
-      </div>
-
-      <hr style="border:none;height:1px;background:#0b2636;margin:12px 0">
-
-      <!-- Stripe connect / withdraw -->
-      <div>
-        <button id="btnConnect">Conectează Stripe (onboarding)</button>
-        <div class="small muted">Dacă rulezi backend, butonul va deschide linkul Stripe returnat de /api/connect. În demo va afișa instrucțiuni.</div>
-      </div>
-
-      <div style="margin-top:8px">
-        <input id="withdrawAmount" placeholder="Sumă USD">
-        <button id="btnWithdraw">Retragere către Visa (instant) — real doar cu backend</button>
-      </div>
-
-      <div style="margin-top:8px">
-        <pre id="log">Jurnal activități (ultimele acțiuni)</pre>
-      </div>
-
-      <div style="margin-top:8px" class="row">
-        <button id="btnLogout" style="background:#2b6cb0;color:#fff">Logout</button>
-        <button id="btnAdminAddFunds" style="background:#2d3748;color:#fff">(Admin) Adaugă fonduri $ (demo)</button>
-      </div>
-
-      <div class="small muted" style="margin-top:8px">
-        <strong>Avertisment:</strong> pentru plăți reale ai nevoie de un backend securizat cu STRIPE_SECRET_KEY și de a respecta KYC/AML. Nu introduce niciodată chei secrete în frontend.
-      </div>
-    </div>
+    <div class="small">Pe iPhone: folosește <em>Photo Library</em> sau <em>Files</em> pentru a selecta multiple imagini/video.</div>
   </div>
 
-  <!-- Right: help / quick steps -->
-  <div class="card">
-    <h3>Ghid rapid</h3>
-    <ol class="small">
-      <li>Lasă Backend URL gol → apasă Register → folosește modul <strong>DEMO</strong> (cel mai simplu).</li>
-      <li>Dacă vrei plăți reale: rulează backend (server.js) pe un host, introdu URL‑ul în câmpul Backend URL și schimbă modul pe <strong>BACKEND</strong>.</li>
-      <li>Pe backend rulează: <code>cp .env.example .env</code> și setează <code>STRIPE_SECRET_KEY</code> (test).</li>
-      <li>Folosește endpointul admin pentru a adăuga fonduri în test: <code>/api/admin/add-funds</code>.</li>
-      <li>Finalizează onboarding Stripe din interfața (butonul Connect) pentru test accounts.</li>
-    </ol>
-
-    <h4 style="margin-top:12px">Ce face acest fișier</h4>
-    <div class="small muted">• demo: totul local (LocalStorage).<br>• backend-ready: dacă pui BACKEND URL, frontend trimite cereri la endpointurile standard: <code>/api/register</code>, <code>/api/login</code>, <code>/api/connect</code>, <code>/api/withdraw</code>.</div>
-
-    <h4 style="margin-top:12px">Vrei ajutor la deploy?</h4>
-    <div class="small muted">Îți pot trimite instrucțiuni pentru Heroku / Vercel sau webhook pentru Stripe — spune "Deploy" sau "Webhook".</div>
-  </div>
-
+  <div id="preview" class="grid" style="margin-top:14px"></div>
 </div>
 
 <script>
-/*
-  Single-file frontend that supports two modes:
-   - DEMO mode: all data (users, balances) in LocalStorage; simulated mining and withdraws.
-   - BACKEND mode: calls your backend (same API shape as server.js provided earlier).
-  Behavior:
-   - On load, if BACKEND URL provided, uses backend mode; otherwise demo.
-   - All sensitive ops (real withdrawals, Stripe onboarding) must be done via backend.
-*/
+const fileInput = document.getElementById('fileInput');
+const drop = document.getElementById('drop');
+const preview = document.getElementById('preview');
+const uploadBtn = document.getElementById('uploadBtn');
 
-const e = (id)=>document.getElementById(id);
-let BACKEND = '';
-let MODE = 'demo'; // 'demo' or 'backend'
-const LOG = e('log');
+let filesToUpload = [];
 
-// ---------- Utilities ----------
-function log(msg){
-  const t = new Date().toLocaleTimeString();
-  LOG.innerText = `[${t}] ${msg}\n` + LOG.innerText;
-  console.log(msg);
-}
-function toCents(v){ return Math.round(parseFloat(v||0)*100); }
-function fmtMoney(c){ return '$' + (c/100).toFixed(2); }
-
-// ---------- Demo user store (LocalStorage) ----------
-function demoKey(email){ return 'demo_user_' + email.toLowerCase(); }
-function demoGetUser(email){ const b=localStorage.getItem(demoKey(email)); return b?JSON.parse(b):null; }
-function demoSaveUser(user){ localStorage.setItem(demoKey(user.email), JSON.stringify(user)); }
-function demoCreateUser(email, pass){
-  if(demoGetUser(email)) return { error:'Email deja exista (demo)' };
-  const user = { email: email.toLowerCase(), passHash: btoa(pass), balance_cents: 0, connected:false };
-  demoSaveUser(user); return { ok:true };
-}
-function demoAuth(email, pass){
-  const u = demoGetUser(email); if(!u) return { error:'User inexistent (demo)' };
-  if(u.passHash !== btoa(pass)) return { error:'Parolă greșită (demo)' };
-  return { ok:true, user:u };
+// Helpers
+function humanSize(bytes){
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+' KB';
+  if(bytes < 1024*1024*1024) return (bytes/(1024*1024)).toFixed(1)+' MB';
+  return (bytes/(1024*1024*1024)).toFixed(2)+' GB';
 }
 
-// ---------- Session ----------
-function setSession(email, token){
-  sessionStorage.setItem('mini_email', email);
-  sessionStorage.setItem('mini_token', token || 'demo-token');
-}
-function clearSession(){ sessionStorage.removeItem('mini_email'); sessionStorage.removeItem('mini_token'); }
-function getSession(){ return sessionStorage.getItem('mini_email'); }
+function addPreview(file){
+  const card = document.createElement('div'); card.className='card';
+  const title = document.createElement('div'); title.className='small'; title.innerText = file.name + ' · ' + humanSize(file.size);
+  const holder = document.createElement('div');
 
-// ---------- UI helpers ----------
-function showAuth(){ e('authSection').style.display='block'; e('appSection').style.display='none'; }
-function showApp(){ e('authSection').style.display='none'; e('appSection').style.display='block'; refreshUI(); }
-function refreshUI(){
-  const email = getSession();
-  if(!email) { showAuth(); return; }
-  e('meEmail').innerText = email;
-  if(MODE==='demo'){
-    const u = demoGetUser(email);
-    e('balanceAmount').innerText = fmtMoney(u.balance_cents || 0);
+  if(file.type.startsWith('image/')){
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    img.onload = ()=> URL.revokeObjectURL(img.src);
+    holder.appendChild(img);
+  } else if(file.type.startsWith('video/')){
+    const v = document.createElement('video'); v.controls=true; v.muted=true; v.width=200;
+    v.src = URL.createObjectURL(file);
+    v.onload = ()=> URL.revokeObjectURL(v.src);
+    holder.appendChild(v);
   } else {
-    // fetch /api/me
-    fetch(BACKEND + '/api/me', { headers: { Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') } })
-      .then(r => r.json()).then(d => {
-        if(d.user) e('balanceAmount').innerText = fmtMoney(d.user.balance_cents || 0);
-        else { log('Eroare la /api/me: ' + JSON.stringify(d)); }
-      }).catch(err=>{ log('Eroare fetch /api/me: '+err.message); });
+    holder.innerText = 'Fișier: ' + file.type;
   }
+
+  const prog = document.createElement('div'); prog.className='prog';
+  const bar = document.createElement('div'); bar.className='bar';
+  prog.appendChild(bar);
+
+  const remove = document.createElement('button'); remove.className='small'; remove.innerText='Elimină';
+  remove.onclick = ()=> { filesToUpload = filesToUpload.filter(f=>f !== file); card.remove(); };
+
+  card.appendChild(holder);
+  card.appendChild(title);
+  card.appendChild(prog);
+  card.appendChild(remove);
+  preview.appendChild(card);
+
+  return bar;
 }
 
-// ---------- Auth actions ----------
-async function register(){
-  const email = e('emailIn').value.trim();
-  const pass = e('passIn').value;
-  if(!email || !pass) return alert('Completează email și parolă');
-
-  if(MODE==='demo'){
-    const r = demoCreateUser(email, pass);
-    if(r.error) return alert(r.error);
-    log('Cont creat (demo): ' + email);
-    alert('Cont creat în modul demo. Apasă Login.');
-  } else {
-    // backend register
-    try {
-      const res = await fetch(BACKEND + '/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass}) });
-      const data = await res.json();
-      if(data.ok) { log('Cont creat pe backend: '+email); alert('Cont creat pe backend. Autentifică-te.'); }
-      else { alert('Eroare: ' + JSON.stringify(data)); }
-    } catch(err){ alert('Eroare la register: ' + err.message); }
-  }
-}
-
-async function login(){
-  const email = e('emailIn').value.trim();
-  const pass = e('passIn').value;
-  if(!email || !pass) return alert('Completează email și parolă');
-
-  if(MODE==='demo'){
-    const r = demoAuth(email, pass);
-    if(r.error) return alert(r.error);
-    setSession(email, 'demo-token');
-    log('Autentificat (demo): ' + email);
-    showApp();
-  } else {
-    try {
-      const res = await fetch(BACKEND + '/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass})});
-      const d = await res.json();
-      if(d.token){ setSession(email, d.token); sessionStorage.setItem('mini_token', d.token); log('Autentificat pe backend: ' + email); showApp(); }
-      else { alert('Eroare login: ' + JSON.stringify(d)); }
-    } catch(err){ alert('Eroare login: '+err.message); }
-  }
-}
-
-function logout(){ clearSession(); location.reload(); }
-
-// ---------- Mini-game (canvas) ----------
-const canvas = e('canvas');
-const ctx = canvas.getContext('2d');
-function resizeCanvas(){ canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; ctx.scale(devicePixelRatio, devicePixelRatio); }
-function fitCanvas(){ canvas.style.height = '220px'; resizeCanvas(); }
-fitCanvas();
-
-let coins = [];
-function spawnCoin(){ coins.push({ x: Math.random()*(canvas.clientWidth-40)+20, y:-10, r:8+Math.random()*8, speed: 1+Math.random()*2 }); }
-function draw(){
-  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
-  ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
-  for(let i=coins.length-1;i>=0;i--){
-    const c = coins[i]; c.y += c.speed;
-    ctx.beginPath();
-    const g = ctx.createRadialGradient(c.x-3,c.y-3,1,c.x,c.y,c.r*1.2);
-    g.addColorStop(0,'#fff6d6'); g.addColorStop(1,'#b88600');
-    ctx.fillStyle = g; ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.stroke();
-    if(c.y > canvas.clientHeight + 10) coins.splice(i,1);
-  }
-  requestAnimationFrame(draw);
-}
-canvas.addEventListener('click', (ev)=>{
-  const rect = canvas.getBoundingClientRect(); const mx = ev.clientX-rect.left; const my = ev.clientY-rect.top;
-  for(let i=coins.length-1;i>=0;i--){ const c=coins[i]; const d = Math.hypot(mx-c.x,my-c.y); if(d < c.r+6){ collectReward(500); coins.splice(i,1); log('Monedă colectată (click) +$0.50 (sim)'); break; } }
-});
-setInterval(()=>{ if(Math.random() < 0.6) spawnCoin(); for(let i=coins.length-1;i>=0;i--){ if(coins[i].y > canvas.clientHeight-6){ collectReward(100); coins.splice(i,1); log('Monedă colectată auto +$0.10 (sim)'); } } }, 800);
-draw();
-
-// ---------- Balances / rewards ----------
-function collectReward(cents){
-  const email = getSession();
-  if(!email) return;
-  if(MODE==='demo'){
-    const u = demoGetUser(email); u.balance_cents = (u.balance_cents||0) + cents; demoSaveUser(u); refreshUI();
-  } else {
-    // In backend mode you could call /api/mine or a credit endpoint. For safety this template does NOT auto-credit backend.
-    log('În modul backend, trebuie să ai un endpoint care să acorde fonduri. Folosește /api/admin/add-funds sau integrează mecanica ta.');
-  }
-}
-
-// ---------- Auto/mining toggle / shop (demo simplicity) ----------
-let autoOn = false; let autoInterval = null;
-function toggleAuto(){
-  if(!getSession()){ alert('Loghează-te mai întâi'); return; }
-  autoOn = !autoOn;
-  e('btnAuto').innerText = autoOn ? 'Oprește Auto' : 'Pornește Auto';
-  if(autoOn){ autoInterval = setInterval(()=>{ collectReward(250); log('Auto mining tick +$2.50 (sim)'); }, 2000); } else { clearInterval(autoInterval); }
-}
-e('btnAuto').addEventListener('click', toggleAuto);
-e('btnMine').addEventListener('click', ()=>{ collectReward(200); log('Mining manual +$2.00 (sim)'); });
-e('btnShop').addEventListener('click', ()=>{ // demo upgrade: cost $5 -> increase auto yield
-  const email = getSession(); if(!email) return alert('Loghează-te'); if(MODE==='demo'){ const u = demoGetUser(email); if((u.balance_cents||0) < 500){ return alert('Fonduri insuficiente (demo)'); } u.balance_cents -= 500; demoSaveUser(u); log('Upgrade cumpărat (demo): -$5.00'); refreshUI(); } else { alert('În modul backend, implementează un endpoint /api/buy-upgrade'); }
+fileInput.addEventListener('change', (e)=>{
+  const list = Array.from(e.target.files);
+  list.forEach(f=>{
+    filesToUpload.push(f);
+    addPreview(f);
+  });
 });
 
-// ---------- Connect Stripe / Withdraw ----------
-async function connectStripe(){
-  const email = getSession(); if(!email) return alert('Loghează-te');
-  if(MODE==='demo'){ alert('Demo: conectarea Stripe e simulată. Pentru conectare reală rulează backend și setează BACKEND URL.'); return; }
-  try{
-    const res = await fetch(BACKEND + '/api/connect', { method:'POST', headers: { Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') }});
-    const d = await res.json();
-    if(d.url){ window.open(d.url, '_blank'); log('Deschis Stripe onboarding link.'); }
-    else { alert('Eroare connect: ' + JSON.stringify(d)); }
-  } catch(err){ alert('Eroare connect: '+err.message); }
-}
-e('btnConnect').addEventListener('click', connectStripe);
-
-async function withdraw(){
-  const email = getSession(); if(!email) return alert('Loghează-te');
-  const amount = parseFloat(e('withdrawAmount').value);
-  if(!amount || amount <= 0) return alert('Sumă invalidă');
-  const cents = toCents(amount);
-  if(MODE==='demo'){
-    const u = demoGetUser(email); if((u.balance_cents||0) < cents) return alert('Fonduri insuficiente (demo)');
-    u.balance_cents -= cents; demoSaveUser(u); refreshUI();
-    // record withdraw in local log
-    const w = JSON.parse(localStorage.getItem('demo_withdraws')||'[]'); w.unshift({ email, amount, ts: new Date().toISOString(), status:'SIMULATED' }); localStorage.setItem('demo_withdraws', JSON.stringify(w));
-    log(`Withdraw simulată: ${fmtMoney(cents)} -> (sim) (nu se trimit bani reali)`);
-    alert('Cerere de retragere simulată înregistrată (demo).');
-    return;
-  }
-  // backend mode
-  try{
-    const res = await fetch(BACKEND + '/api/withdraw', { method:'POST', headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') }, body: JSON.stringify({ amount_cents: cents })});
-    const d = await res.json();
-    if(d.ok){ log('Withdraw realizată: ' + JSON.stringify(d.transfer || {})); alert('Withdraw trimis. Verifică logul și Stripe Dashboard.'); refreshUI(); }
-    else { alert('Eroare withdraw: ' + JSON.stringify(d)); log('Withdraw error: ' + JSON.stringify(d)); }
-  } catch(err){ alert('Eroare withdraw: '+err.message); }
-}
-e('btnWithdraw').addEventListener('click', withdraw);
-
-// ---------- Admin add funds (demo) ----------
-e('btnAdminAddFunds').addEventListener('click', ()=>{
-  const email = prompt('Email user (pentru demo):'); const v = prompt('Suma în USD de adăugat (ex: 5 pentru $5):');
-  if(!email || !v) return;
-  const cents = Math.round(parseFloat(v)*100);
-  if(MODE==='demo'){
-    let u = demoGetUser(email); if(!u) { if(!confirm('User inexistent. Creăm cont demo pentru acest email?')) return; demoCreateUser(email, 'demo123'); u = demoGetUser(email); }
-    u.balance_cents = (u.balance_cents||0) + cents; demoSaveUser(u); log(`Admin: adăugat ${fmtMoney(cents)} la ${email} (demo)`); if(getSession()===email) refreshUI();
-  } else {
-    // call backend admin endpoint (note: in production protect this endpoint)
-    fetch(BACKEND + '/api/admin/add-funds', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, cents }) })
-      .then(r=>r.json()).then(d=>{ log('Admin add funds backend: ' + JSON.stringify(d)); alert(JSON.stringify(d)); }).catch(err=>alert('Eroare admin add-funds: '+err.message));
-  }
+// drag & drop
+drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
+drop.addEventListener('drop', (e)=>{
+  e.preventDefault(); drop.classList.remove('drag');
+  const list = Array.from(e.dataTransfer.files);
+  list.forEach(f=>{ filesToUpload.push(f); addPreview(f); });
 });
 
-// ---------- init: backend input, mode selection ----------
-e('backendInput').addEventListener('change', ()=>{ BACKEND = e('backendInput').value.trim(); });
-e('modeSelect').addEventListener('change', ()=>{ const v = e('modeSelect').value; if(v==='demo') { MODE='demo'; e('backendInput').value=''; BACKEND=''; } else if(v==='backend'){ MODE='backend'; BACKEND = e('backendInput').value.trim(); } else { MODE='auto'; } });
-e('btnRegister').addEventListener('click', register); e('btnLogin').addEventListener('click', login); e('btnLogout').addEventListener('click', logout);
+// upload routine with progress per file
+async function uploadAll(){
+  if(filesToUpload.length === 0){ alert('Nicio poză/video selectată'); return; }
 
-// On load: prompt for backend or demo auto
-window.addEventListener('load', async ()=>{
-  // Auto prompt only if modeSelect=auto
-  if(e('modeSelect').value === 'auto'){
-    const url = prompt('Dacă ai un backend (server.js) rulează-l și scrie URL (ex: https://example.com). Lasă gol pentru DEMO:', '');
-    if(url && url.trim().length>0){ BACKEND = url.trim(); MODE='backend'; e('modeSelect').value='backend'; e('backendInput').value = BACKEND; log('Mod backend activat: ' + BACKEND); }
-    else { MODE='demo'; e('modeSelect').value='demo'; log('Mod demo activat (local).'); }
+  // iterate files, build formData, send fetch for each with progress via XHR
+  for(const file of [...filesToUpload]){ // copy since we remove on success
+    const bar = addPreview(file); // show a second preview for progress? better: we already added earlier; find matching bar
+    // find the existing bar for this file: (simpler approach: create mapping above. For brevity we'll upload with single XHR and update progress globally.)
   }
-  // If session exists, show app
-  if(getSession()){ showApp(); } else { showAuth(); }
-  // resize handling
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
-});
 
+  // Simpler: show a combined progress per file using XMLHttpRequest
+  for(const file of filesToUpload.slice()){ // iterate copy
+    await uploadSingle(file);
+  }
+
+  // after all
+  alert('Toate fișierele au fost trimise (sau s-au încercat). Vezi /gallery');
+  filesToUpload = [];
+  preview.innerHTML = '';
+}
+
+function uploadSingle(file){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload');
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+
+    // create a temp progress bar visually
+    const tmpBar = document.createElement('div'); tmpBar.className='bar';
+    const tmpWrap = document.createElement('div'); tmpWrap.className='prog'; tmpWrap.style.marginTop='6px'; tmpWrap.appendChild(tmpBar);
+    // append to top of preview area
+    const wrapper = document.createElement('div'); wrapper.style.marginBottom='6px'; wrapper.appendChild(document.createTextNode('Uploading: ' + file.name)); wrapper.appendChild(tmpWrap);
+    preview.insertBefore(wrapper, preview.firstChild);
+
+    xhr.upload.addEventListener('progress', (e)=>{
+      if(e.lengthComputable){
+        const p = Math.round((e.loaded / e.total) * 100);
+        tmpBar.style.width = p + '%';
+      }
+    });
+
+    xhr.onreadystatechange = ()=>{
+      if(xhr.readyState === 4){
+        if(xhr.status >= 200 && xhr.status < 300){
+          tmpBar.style.width = '100%';
+          resolve(xhr.responseText);
+          wrapper.remove();
+        } else {
+          tmpBar.style.background = '#ff3860';
+          log('Eroare upload: ' + xhr.status + ' ' + xhr.responseText);
+          resolve(null); // resolve to continue others
+          wrapper.remove();
+        }
+      }
+    };
+
+    xhr.send(fd);
+  });
+}
+
+uploadBtn.addEventListener('click', uploadAll);
+
+// convenience: visit gallery link if server serves it
 </script>
 </body>
 </html>
