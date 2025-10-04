@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Runner Multiplayer</title>
+<title>FPS Strategie Multiplayer</title>
 <style>
-body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;}
+body{margin:0;padding:0;font-family:Arial,sans-serif;background:#222;color:#fff;text-align:center;}
 #login-area, #game-area{margin-top:20px;}
+canvas{background:#444;display:block;margin:20px auto;border:2px solid #000;}
 button,input{padding:8px;margin:5px;}
-canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
 #leaderboard{margin-top:10px;}
 </style>
 </head>
@@ -24,8 +24,8 @@ canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
 </div>
 
 <div id="game-area" style="display:none;">
-  <h2>🏃‍♂️ Runner Multiplayer</h2>
-  <canvas id="game-canvas" width="600" height="300"></canvas>
+  <h2>🔫 FPS Strategie Multiplayer</h2>
+  <canvas id="game-canvas" width="800" height="400"></canvas>
   <div>Scor: <span id="score">0</span> | Timp: <span id="time">0</span>s | Nivel: <span id="level">1</span> | Rang: <span id="rank">Novice</span></div>
   <div id="leaderboard">
     <h3>Leaderboard</h3>
@@ -36,11 +36,10 @@ canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// 🔹 Config Firebase (înlocuiește cu valorile tale)
+// 🔹 Config Firebase (înlocuiește cu datele tale)
 const firebaseConfig = {
   apiKey: "APIKEY",
   authDomain: "PROJECTID.firebaseapp.com",
@@ -51,7 +50,6 @@ const firebaseConfig = {
   appId: "APPID"
 };
 firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
 const db = firebase.database();
 
 // 🔹 Elemente UI
@@ -72,113 +70,139 @@ const lbList = document.getElementById('lb-list');
 // 🔹 Variabile joc
 let canvas = document.getElementById('game-canvas');
 let ctx = canvas.getContext('2d');
-let player = {x:50,y:250,width:30,height:30,vy:0,onGround:true};
-let obstacles = [];
+let player = {x:50,y:200,width:30,height:30,color:'red',vx:0,vy:0};
+let bullets = [];
+let enemies = [];
 let score = 0;
 let timePlayed = 0;
 let level = 1;
 let rank = 'Novice';
 let gameInterval;
+let currentUser = null;
 
-// 🔹 Login / Register
-registerBtn.onclick = () => {
+// 🔹 Login / Register LocalStorage
+function saveUsers(users){localStorage.setItem('fps_users',JSON.stringify(users));}
+function loadUsers(){return JSON.parse(localStorage.getItem('fps_users')||'{}');}
+
+registerBtn.onclick = ()=>{
   const u = usernameInput.value.trim();
   const p = passwordInput.value;
-  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
-  auth.createUserWithEmailAndPassword(u+'@game.com', p)
-    .then(cred=>{
-      db.ref('players/'+cred.user.uid).set({username:u,score:0,time:0,level:1});
-      loginMsg.style.color='green'; loginMsg.textContent='Cont creat!';
-    }).catch(e=>loginMsg.textContent=e.message);
+  if(!u||!p){loginMsg.textContent='Completează toate câmpurile'; return;}
+  const users = loadUsers();
+  if(users[u]){loginMsg.textContent='Username deja folosit'; return;}
+  users[u]={password:p,score:0,time:0,level:1};
+  saveUsers(users);
+  loginMsg.style.color='green';
+  loginMsg.textContent='Cont creat! Poți să te loghezi.';
 };
 
-loginBtn.onclick = () => {
+loginBtn.onclick = ()=>{
   const u = usernameInput.value.trim();
   const p = passwordInput.value;
-  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
-  auth.signInWithEmailAndPassword(u+'@game.com', p)
-    .then(cred=>{
-      loginArea.style.display='none';
-      gameArea.style.display='block';
-      startGame(cred.user.uid,u);
-    }).catch(e=>loginMsg.textContent=e.message);
+  const users = loadUsers();
+  if(!users[u] || users[u].password!==p){loginMsg.textContent='Username sau parolă greșită'; return;}
+  currentUser = u;
+  loginArea.style.display='none';
+  gameArea.style.display='block';
+  startGame(u);
 };
 
-logoutBtn.onclick = () => {
-  auth.signOut();
+logoutBtn.onclick = ()=>{
   location.reload();
 };
 
-// 🔹 Joc Runner
+// 🔹 Controale
+const keys = {};
+document.addEventListener('keydown',e=>keys[e.key]=true);
+document.addEventListener('keyup',e=>keys[e.key]=false);
 document.addEventListener('keydown', e=>{
-  if(e.code==='Space' && player.onGround){player.vy=-8; player.onGround=false;}
+  if(e.key===' '){shootBullet();}
 });
 
-function startGame(uid,username){
+// 🔹 Joc
+function startGame(u){
   score = 0; timePlayed=0; level=1; rank='Novice';
-  player.y=250; player.vy=0; player.onGround=true;
-  obstacles=[];
+  player.x = 50; player.y = 200; bullets=[]; enemies=[];
   if(gameInterval) clearInterval(gameInterval);
-  gameInterval = setInterval(gameLoop, 30);
+  gameInterval = setInterval(gameLoop,30);
 
-  // Update timp și scor în Firebase
   setInterval(()=>{
     timePlayed++;
-    timeEl.textContent=timePlayed;
-    db.ref('players/'+uid).update({score:score,time:timePlayed,level:level});
+    timeEl.textContent = timePlayed;
     updateRank();
     updateLeaderboard();
+    // Salvare scor în LocalStorage și Firebase
+    const users = loadUsers();
+    users[u].score = score;
+    users[u].time = timePlayed;
+    users[u].level = level;
+    saveUsers(users);
+    db.ref('fps_players/'+u).set({username:u,score:score,time:timePlayed,level:level,x:player.x,y:player.y});
   },1000);
 }
 
 function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Gravity
-  player.vy+=0.5;
-  player.y+=player.vy;
-  if(player.y>250){player.y=250; player.vy=0; player.onGround=true;}
-  // Desenează player
-  ctx.fillStyle='red';
+  // Mișcare player
+  if(keys['ArrowUp'] && player.y>0) player.y -=5;
+  if(keys['ArrowDown'] && player.y+player.height<canvas.height) player.y +=5;
+  if(keys['ArrowLeft'] && player.x>0) player.x -=5;
+  if(keys['ArrowRight'] && player.x+player.width<canvas.width) player.x +=5;
+
+  // Draw player
+  ctx.fillStyle = player.color;
   ctx.fillRect(player.x,player.y,player.width,player.height);
-  // Obstacole
-  if(Math.random()<0.02){obstacles.push({x:canvas.width,y:250,width:30,height:30});}
-  for(let i=0;i<obstacles.length;i++){
-    obstacles[i].x-=5+level;
-    ctx.fillStyle='black';
-    ctx.fillRect(obstacles[i].x,obstacles[i].y,obstacles[i].width,obstacles[i].height);
-    if(collide(player,obstacles[i])){score=0; obstacles=[]; player.y=250; level=1;}
-    if(obstacles[i].x+obstacles[i].width<0){obstacles.splice(i,1); i--; score+=1; scoreEl.textContent=score;}
-  }
-  level = Math.floor(score/20)+1;
-  levelEl.textContent=level;
+
+  // Obstacole / Enemies
+  if(Math.random()<0.02) enemies.push({x:canvas.width,y:Math.random()*350,width:30,height:30,color:'green'});
+  enemies.forEach((e,i)=>{
+    e.x -= 3+level;
+    ctx.fillStyle=e.color;
+    ctx.fillRect(e.x,e.y,e.width,e.height);
+    // Coliziune player
+    if(collide(player,e)){score=0;player.x=50;player.y=200;enemies=[];level=1;}
+    // Coliziune cu gloanțe
+    bullets.forEach((b,j)=>{
+      if(collide(b,e)){score+=5;enemies.splice(i,1);bullets.splice(j,1);i--; j--;}
+    });
+  });
+
+  // Draw bullets
+  bullets.forEach((b,i)=>{b.x+=10; ctx.fillStyle='yellow'; ctx.fillRect(b.x,b.y,b.width,b.height); if(b.x>canvas.width) bullets.splice(i,1);});
+
+  // Update scor / nivel
+  scoreEl.textContent = score;
+  level = Math.floor(score/50)+1;
+  levelEl.textContent = level;
 }
+
+function shootBullet(){bullets.push({x:player.x+player.width,y:player.y+player.height/2-2,width:10,height:4});}
 
 function collide(a,b){
   return a.x<a.x+b.width && a.x+a.width>b.x && a.y<a.y+b.height && a.y+a.height>b.y;
 }
 
-// 🔹 Ranguri
+// Ranguri
 function updateRank(){
-  if(score<20) rank='Novice';
-  else if(score<50) rank='Intermediate';
-  else if(score<100) rank='Pro';
+  if(score<50) rank='Novice';
+  else if(score<100) rank='Intermediate';
+  else if(score<200) rank='Pro';
   else rank='Master';
-  rankEl.textContent=rank;
+  rankEl.textContent = rank;
 }
 
-// 🔹 Leaderboard
+// Leaderboard
 function updateLeaderboard(){
-  db.ref('players').orderByChild('score').limitToLast(5).once('value',snap=>{
+  db.ref('fps_players').orderByChild('score').limitToLast(5).once('value',snap=>{
     lbList.innerHTML='';
     snap.forEach(child=>{
-      let p = child.val();
-      let li = document.createElement('li');
+      const p = child.val();
+      const li = document.createElement('li');
       li.textContent = `${p.username} - Scor: ${p.score} Timp: ${p.time}s Nivel: ${p.level}`;
       lbList.prepend(li);
     });
   });
 }
 </script>
-
 </body>
 </html>
