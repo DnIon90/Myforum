@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Galerie cu Login, Statistici și Foldere</title>
+<title>Galerie cu Foldere Vizibile</title>
 <style>
 body{font-family:Arial,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padding:18px}
 .wrap{max-width:900px;margin:0 auto}
@@ -17,7 +17,8 @@ img,video{max-width:100%;max-height:100px;border-radius:6px;object-fit:cover}
 .card{background:#fff;padding:6px;border-radius:6px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
 .card button, .card select{margin:2px;font-size:11px;padding:4px 6px}
 .stats{margin-top:10px;font-size:14px;color:#333;text-align:center}
-.folderBar{margin:10px 0;padding:6px;background:#e9f0fb;border-radius:6px}
+.folder{font-size:60px;color:gold;text-align:center;cursor:pointer}
+.folderName{font-size:14px;margin-top:4px;color:#222}
 </style>
 </head>
 <body>
@@ -36,33 +37,36 @@ img,video{max-width:100%;max-height:100px;border-radius:6px;object-fit:cover}
 <div id="appDiv" class="hidden">
 <button id="btnLogout">Logout</button>
 
-<div class="folderBar">
-📂 Folder curent: <b id="currentFolderName">Principal</b><br>
-<select id="folderSelect"></select>
+<div>
+<button id="btnBack" class="hidden">⬅ Înapoi</button>
 <button id="btnNewFolder">+ Nou Folder</button>
 </div>
 
 <h2>Upload Poze & Video</h2>
 <input type="file" id="fileInput" multiple accept="image/*,video/*"><br>
 <button id="btnUpload">Încarcă</button>
-<div id="uploadMsg" style="margin-top:6px;color:green"></div>
 
 <div class="stats" id="statsDiv"></div>
 
-<h3>Galeria ta</h3>
+<h3>Galeria</h3>
 <div id="gallery" class="grid"></div>
 </div>
 </div>
 
 <script>
 // ------------------------
-// Stocare locală utilizatori
+// Date
 // ------------------------
 let users = JSON.parse(localStorage.getItem('users') || '{}');
 let currentUser = localStorage.getItem('currentUser') || null;
-let currentFolder = "Principal";
+let path = ["Principal"]; // folder curent
 
 function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
+function getCurrentFolder(){
+  let obj = users[currentUser].folders;
+  for(let p of path){ obj=obj[p]; }
+  return obj;
+}
 function showAuth(msg){ 
   document.getElementById('authDiv').classList.remove('hidden'); 
   document.getElementById('appDiv').classList.add('hidden'); 
@@ -71,8 +75,7 @@ function showAuth(msg){
 function showApp(){ 
   document.getElementById('authDiv').classList.add('hidden'); 
   document.getElementById('appDiv').classList.remove('hidden'); 
-  if(!users[currentUser].folders) users[currentUser].folders = { "Principal": [] };
-  loadFolders();
+  if(!users[currentUser].folders) users[currentUser].folders = { "Principal": { files:[], subfolders:{} } };
   loadGallery();
   updateStats();
 }
@@ -85,7 +88,7 @@ document.getElementById('btnRegister').addEventListener('click', ()=>{
   const p = document.getElementById('password').value.trim();
   if(!u||!p){ showAuth('Completează username și parolă'); return;}
   if(users[u]){ showAuth('Username deja există'); return;}
-  users[u] = { password: p, folders: { "Principal": [] } };
+  users[u] = { password: p, folders: { "Principal": { files:[], subfolders:{} } } };
   saveUsers();
   showAuth('Cont creat, te poți loga');
 });
@@ -97,6 +100,7 @@ document.getElementById('btnLogin').addEventListener('click', ()=>{
   if(!users[u] || users[u].password !== p){ showAuth('Username/parolă incorecte'); return;}
   currentUser = u;
   localStorage.setItem("currentUser", currentUser);
+  path=["Principal"];
   showApp();
 });
 
@@ -113,9 +117,10 @@ document.getElementById('btnUpload').addEventListener('click', ()=>{
   if(!currentUser) return;
   const files = document.getElementById('fileInput').files;
   if(files.length===0){ alert('Selectează fișiere'); return;}
+  const folder=getCurrentFolder();
   for(const f of files){
-    const url = URL.createObjectURL(f); // link temporar
-    users[currentUser].folders[currentFolder].push({name:f.name,type:f.type,data:url});
+    const url = URL.createObjectURL(f); 
+    folder.files.push({name:f.name,type:f.type,data:url});
   }
   saveUsers();
   loadGallery();
@@ -129,36 +134,35 @@ function loadGallery(){
   if(!currentUser) return;
   const gal = document.getElementById('gallery');
   gal.innerHTML = '';
-  const files = users[currentUser].folders[currentFolder] || [];
-  files.forEach((f,i)=>{
+  const folder=getCurrentFolder();
+
+  // buton înapoi
+  document.getElementById("btnBack").classList.toggle("hidden", path.length<=1);
+
+  // afiseaza subfoldere
+  for(const fname in folder.subfolders){
+    const card=document.createElement("div"); card.className="card";
+    const icon=document.createElement("div"); icon.className="folder"; icon.innerHTML="📁";
+    icon.onclick=()=>{ path.push(fname); loadGallery(); updateStats(); };
+    const label=document.createElement("div"); label.className="folderName"; label.innerText=fname;
+    card.appendChild(icon); card.appendChild(label);
+    gal.appendChild(card);
+  }
+
+  // afiseaza fisiere
+  folder.files.forEach((f,i)=>{
     const card = document.createElement('div'); card.className='card';
     if(f.type.startsWith('image/')){
       const img = document.createElement('img'); img.src=f.data; card.appendChild(img);
     } else if(f.type.startsWith('video/')){
       const v = document.createElement('video'); v.src=f.data; v.controls=true; card.appendChild(v);
     }
-    // butoane
     const dl = document.createElement('button'); dl.textContent="Descărcare";
     dl.onclick=()=>downloadFile(f);
     const del = document.createElement('button'); del.textContent="Ștergere";
-    del.onclick=()=>deleteFile(i);
-
-    // meniu mutare
-    const moveSel=document.createElement("select");
-    Object.keys(users[currentUser].folders).forEach(folder=>{
-      const opt=document.createElement("option");
-      opt.value=folder; opt.text=folder;
-      if(folder===currentFolder) opt.disabled=true; // nu are sens în același folder
-      moveSel.appendChild(opt);
-    });
-    moveSel.onchange=()=>moveFile(i,moveSel.value);
-
+    del.onclick=()=>{folder.files.splice(i,1); saveUsers(); loadGallery(); updateStats();};
     card.appendChild(document.createElement('br'));
-    card.appendChild(dl); 
-    card.appendChild(del); 
-    card.appendChild(document.createElement('br'));
-    card.appendChild(moveSel);
-
+    card.appendChild(dl); card.appendChild(del);
     gal.appendChild(card);
   });
 }
@@ -166,56 +170,30 @@ function loadGallery(){
 // ------------------------
 // Foldere
 // ------------------------
-function loadFolders(){
-  const sel = document.getElementById("folderSelect");
-  sel.innerHTML="";
-  const folders = Object.keys(users[currentUser].folders);
-  folders.forEach(f=>{
-    const opt=document.createElement("option");
-    opt.value=f; opt.text=f;
-    if(f===currentFolder) opt.selected=true;
-    sel.appendChild(opt);
-  });
-  document.getElementById("currentFolderName").innerText=currentFolder;
-}
-document.getElementById("folderSelect").addEventListener("change",e=>{
-  currentFolder=e.target.value;
-  loadGallery();
-  updateStats();
-  document.getElementById("currentFolderName").innerText=currentFolder;
-});
 document.getElementById("btnNewFolder").addEventListener("click",()=>{
   const name=prompt("Nume folder nou:");
   if(!name) return;
-  if(users[currentUser].folders[name]){alert("Există deja!");return;}
-  users[currentUser].folders[name]=[];
+  const folder=getCurrentFolder();
+  if(folder.subfolders[name]){alert("Există deja!");return;}
+  folder.subfolders[name]={ files:[], subfolders:{} };
   saveUsers();
-  currentFolder=name;
-  loadFolders();
   loadGallery();
-  updateStats();
+});
+document.getElementById("btnBack").addEventListener("click",()=>{
+  if(path.length>1){ path.pop(); loadGallery(); updateStats(); }
 });
 
 // ------------------------
-// Funcții extra
+// Extra
 // ------------------------
 function updateStats(){
   if(!currentUser) return;
-  const files = users[currentUser].folders[currentFolder] || [];
-  const images = files.filter(f=>f.type.startsWith('image/')).length;
-  const videos = files.filter(f=>f.type.startsWith('video/')).length;
+  const folder=getCurrentFolder();
+  const images = folder.files.filter(f=>f.type.startsWith('image/')).length;
+  const videos = folder.files.filter(f=>f.type.startsWith('video/')).length;
   document.getElementById('statsDiv').innerText = 
-    `Folder: ${currentFolder} | Poze: ${images} | Video: ${videos} | Total: ${files.length}`;
+    `Folder: ${path.join("/")} | Poze: ${images} | Video: ${videos} | Total: ${folder.files.length}`;
 }
-
-function deleteFile(index){
-  if(!currentUser) return;
-  users[currentUser].folders[currentFolder].splice(index,1);
-  saveUsers();
-  loadGallery();
-  updateStats();
-}
-
 function downloadFile(f){
   const a = document.createElement('a');
   a.href = f.data;
@@ -223,16 +201,6 @@ function downloadFile(f){
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-}
-
-function moveFile(index,newFolder){
-  if(!currentUser) return;
-  const file=users[currentUser].folders[currentFolder][index];
-  users[currentUser].folders[newFolder].push(file);
-  users[currentUser].folders[currentFolder].splice(index,1);
-  saveUsers();
-  loadGallery();
-  updateStats();
 }
 
 // ------------------------
