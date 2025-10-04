@@ -1,164 +1,135 @@
-const OWNER = 'USERNAME';  // aici pui username-ul tău GitHub
-const REPO  = 'myforum';  // numele repo-ului
-
 <!doctype html>
 <html lang="ro">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mini-forum pe GitHub Pages</title>
+  <title>MyForum - GitHub Pages Forum</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; max-width:900px; margin:30px auto; padding:0 18px; line-height:1.5; }
-    header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px;}
-    h1 { margin:0; font-size:1.6rem; }
-    .thread { border:1px solid #ddd; padding:12px; border-radius:8px; margin-bottom:12px; background:#fff; }
-    .meta { font-size:0.9rem; color:#555; margin-bottom:8px; }
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 18px; background:#f9f9f9; color:#333; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    h1 { margin:0; font-size:1.8rem; color:#007bff; }
+    .thread { background:#fff; border:1px solid #ddd; padding:15px; border-radius:8px; margin-bottom:15px; box-shadow:0 1px 2px rgba(0,0,0,0.05);}
+    .meta { font-size:0.9rem; color:#666; margin-bottom:8px; }
     .content { white-space:pre-wrap; }
-    .controls { margin-top:10px; display:flex; gap:8px; }
-    a.button { text-decoration:none; border:1px solid #007bff; padding:6px 10px; border-radius:6px; color:#007bff; font-weight:600; }
+    .controls { margin-top:10px; display:flex; gap:10px; }
+    a.button { text-decoration:none; border:1px solid #007bff; padding:6px 12px; border-radius:6px; color:#007bff; font-weight:bold; transition:0.2s; }
+    a.button:hover { background:#007bff; color:#fff; }
     a.small { font-size:0.9rem; color:#444; }
-    #thread-view { margin-top:24px; }
-    #new-title { width:320px; padding:6px; }
-    footer { margin-top:30px; color:#666; font-size:0.9rem; }
+    #new-title { width:250px; padding:6px; border:1px solid #ccc; border-radius:5px; }
+    footer { margin-top:30px; color:#666; font-size:0.9rem; text-align:center; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Mini-forum (GitHub)</h1>
+    <h1>💬 MyForum</h1>
     <div>
-      <!-- Editați OWNER/REPO mai jos -->
-      <input id="new-title" placeholder="Titlu nou thread (fără spații)" />
-      <a id="create-link" class="button" href="#" target="_blank" rel="noopener">Creează thread nou</a>
+      <input id="new-title" placeholder="Titlu nou thread" />
+      <a id="create-link" class="button" href="#" target="_blank">Creează thread</a>
     </div>
   </header>
 
   <section id="list">
-    <p>Se încarcă lista de thread-uri…</p>
+    <p>Se încarcă thread-urile...</p>
   </section>
 
   <section id="thread-view"></section>
 
   <footer>
-    <p>Funcționează cu fișiere markdown în folderul <code>threads/</code>. Click „Edit on GitHub” pentru a modifica conținutul (va trebui să fii logat pe GitHub).</p>
+    <p>Forumul rulează pe GitHub Pages, folosind fișiere Markdown din folderul <code>threads/</code>.</p>
   </footer>
 
 <script>
-/* === CONFIG: înlocuiește OWNER și REPO cu repo-ul tău === */
-const OWNER = 'OWNER';
-const REPO  = 'REPO';
-const BRANCH = 'main'; // sau master dacă folosești master
+/* CONFIG — schimbă USERNAME cu userul tău GitHub */
+const OWNER = 'USERNAME';   // ← aici pui numele tău GitHub
+const REPO  = 'myforum';
+const BRANCH = 'main';
 const THREAD_FOLDER = 'threads';
 
-/* Helper URLs */
 const apiListUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${THREAD_FOLDER}?ref=${BRANCH}`;
-const githubEditBase = `https://github.com/${OWNER}/${REPO}/edit/${BRANCH}/${THREAD_FOLDER}/`; // + filename
+const githubEditBase = `https://github.com/${OWNER}/${REPO}/edit/${BRANCH}/${THREAD_FOLDER}/`;
 const githubNewFile = `https://github.com/${OWNER}/${REPO}/new/${BRANCH}?filename=${THREAD_FOLDER}/`;
 
-/* Minimal markdown-to-HTML (very basic): convert #, ## and links and bold */
 function mdToHtml(md) {
-  // escape
-  let html = md
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // headings
+  let html = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-  // bold/italic
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  // links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // paragraphs
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
   html = html.replace(/\n{2,}/g, '</p><p>');
   html = '<p>' + html + '</p>';
-  // line breaks
   html = html.replace(/\n/g, '<br/>');
   return html;
 }
 
-/* Load list of files from threads folder */
 async function loadList() {
   const listEl = document.getElementById('list');
-  listEl.innerHTML = '<p>Se încarcă lista de thread-uri…</p>';
+  listEl.innerHTML = '<p>Se încarcă...</p>';
   try {
     const resp = await fetch(apiListUrl);
-    if (!resp.ok) throw new Error(`GitHub API error ${resp.status}`);
+    if (!resp.ok) throw new Error(resp.status);
     const files = await resp.json();
-    // files is an array of objects {name, path, download_url, ...}
     if (!Array.isArray(files) || files.length === 0) {
-      listEl.innerHTML = '<p>Nu există thread-uri. Creează unul nou.</p>';
+      listEl.innerHTML = '<p>Nu există thread-uri. Creează unul!</p>';
       return;
     }
-    // sort by name (you can change)
     files.sort((a,b)=>a.name.localeCompare(b.name));
-    const html = files.map(f => {
+    listEl.innerHTML = files.map(f => {
       const title = decodeURIComponent(f.name).replace(/\.md$/i,'').replace(/-/g,' ');
       return `<div class="thread">
-        <div class="meta"><strong>${title}</strong> • <span class="small">file: ${f.name}</span></div>
+        <div class="meta"><strong>${title}</strong></div>
         <div class="controls">
-          <a class="small" href="#" data-file="${encodeURIComponent(f.path)}" onclick="openThread(event,this)">Deschide</a>
-          <a class="small" href="${githubEditBase + encodeURIComponent(f.name)}" target="_blank" rel="noopener">Edit on GitHub</a>
+          <a class="button" href="#" data-file="${encodeURIComponent(f.path)}" onclick="openThread(event,this)">Deschide</a>
+          <a class="small" href="${githubEditBase + encodeURIComponent(f.name)}" target="_blank">✏️ Edit</a>
         </div>
       </div>`;
     }).join('');
-    listEl.innerHTML = html;
   } catch (err) {
-    listEl.innerHTML = `<p>Eroare la încărcare: ${err.message}</p>`;
+    listEl.innerHTML = `<p>Eroare: ${err.message}</p>`;
   }
 }
 
-/* Open and render a single thread */
 async function openThread(e, el) {
   e.preventDefault();
   const path = decodeURIComponent(el.getAttribute('data-file'));
   const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
   const view = document.getElementById('thread-view');
-  view.innerHTML = '<p>Se încarcă thread-ul…</p>';
+  view.innerHTML = '<p>Se încarcă...</p>';
   try {
     const r = await fetch(rawUrl);
-    if (!r.ok) throw new Error(`fetch ${r.status}`);
     const md = await r.text();
-    // Prima linie(s) pot fi titlu: extragem titlul (daca exista)
-    let title = '';
-    const firstLine = md.split(/\r?\n/)[0] || '';
-    if (firstLine.startsWith('# ')) title = firstLine.replace('# ','').trim();
     const html = mdToHtml(md);
     const filename = path.split('/').pop();
-    view.innerHTML = `
-      <div class="thread">
-        <div class="meta"><strong>${title || filename.replace('.md','')}</strong></div>
+    view.innerHTML = `<div class="thread">
         <div class="content">${html}</div>
         <div class="controls">
-          <a class="button" href="${githubEditBase + encodeURIComponent(filename)}" target="_blank" rel="noopener">Edit on GitHub</a>
+          <a class="button" href="${githubEditBase + encodeURIComponent(filename)}" target="_blank">✏️ Edit pe GitHub</a>
           <a class="small" href="#" onclick="closeThread(event)">Închide</a>
         </div>
-      </div>
-    `;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      </div>`;
   } catch (err) {
-    view.innerHTML = `<p>Eroare la încărcare thread: ${err.message}</p>`;
+    view.innerHTML = `<p>Eroare la încărcare: ${err.message}</p>`;
   }
 }
 
-function closeThread(e) { e.preventDefault(); document.getElementById('thread-view').innerHTML = ''; }
+function closeThread(e) {
+  e.preventDefault();
+  document.getElementById('thread-view').innerHTML = '';
+}
 
-/* Create new thread link */
 document.getElementById('new-title').addEventListener('input', function() {
   const raw = this.value.trim();
   if (!raw) {
     document.getElementById('create-link').href = '#';
     return;
   }
-  // make filename-friendly slug
   const slug = raw.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
-  // prefill a default content (we URL-encode it)
-  const template = encodeURIComponent(`# ${raw}\n\nScrie primul mesaj aici...\n\n---\n*Creator: ${OWNER}*`);
-  // Build url for creating new file via GitHub UI
+  const template = encodeURIComponent(`# ${raw}\n\nScrie primul mesaj aici...`);
   const newUrl = `${githubNewFile}${slug}.md&value=${template}`;
   document.getElementById('create-link').href = newUrl;
 });
 
-/* Kick off */
 loadList();
 </script>
 </body>
