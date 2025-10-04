@@ -51,7 +51,7 @@ img,video{max-width:100%;border-radius:6px}
 // Stocare locală utilizatori
 // ------------------------
 let users = JSON.parse(localStorage.getItem('users') || '{}');
-let currentUser = null;
+let currentUser = localStorage.getItem('currentUser') || null;
 
 function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
 function showAuth(msg){ 
@@ -85,11 +85,14 @@ document.getElementById('btnLogin').addEventListener('click', ()=>{
   if(!u||!p){ showAuth('Completează username și parolă'); return;}
   if(!users[u] || users[u].password !== p){ showAuth('Username/parolă incorecte'); return;}
   currentUser = u;
+  localStorage.setItem("currentUser", currentUser);
   showApp();
 });
 
 document.getElementById('btnLogout').addEventListener('click', ()=>{
-  currentUser = null; showAuth();
+  currentUser = null;
+  localStorage.removeItem("currentUser");
+  showAuth();
 });
 
 // ------------------------
@@ -100,14 +103,11 @@ document.getElementById('btnUpload').addEventListener('click', ()=>{
   const files = document.getElementById('fileInput').files;
   if(files.length===0){ alert('Selectează fișiere'); return;}
   for(const f of files){
-    const reader = new FileReader();
-    reader.onload = e=>{
-      users[currentUser].files.push({name:f.name,type:f.type,data:e.target.result});
-      saveUsers();
-      loadGallery();
-      updateStats();
-    };
-    reader.readAsDataURL(f);
+    const url = URL.createObjectURL(f); // URL temporar pentru redare
+    users[currentUser].files.push({name:f.name,type:f.type,data:url});
+    saveUsers();
+    loadGallery();
+    updateStats();
   }
 });
 
@@ -170,7 +170,13 @@ function downloadFile(f){
 }
 
 // ------------------------
-showAuth();
+// La încărcare
+// ------------------------
+if (currentUser && users[currentUser]) {
+  showApp();
+} else {
+  showAuth();
+}
 </script>
 </body>
 </html>
