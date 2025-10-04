@@ -3,277 +3,157 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Ferma lui Ion - Monede și Animale</title>
+<title>Ferma lui Ion - Animale și Tractor</title>
 <style>
 body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:20px;}
 h1,h2,h3{color:#2e7d32;margin:5px 0;}
 input,button,select{padding:6px;border-radius:5px;border:1px solid #ccc;font-size:14px;}
-button{background:#2e7d32;color:#fff;border:0;cursor:pointer;}
+button{background:#2e7d32;color:#fff;border:0;cursor:pointer;margin:2px;}
 button:hover{background:#1b5e20;}
 .muted{color:#666;font-size:13px;}
-#login-area,#farm-area,#admin-area,#shop-area{margin-bottom:20px;}
 #plots{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
 .plot{width:100px;height:100px;background:#a0522d;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;position:relative;font-weight:bold;transition:background 0.3s;}
 .plot.planted{background:#fdd835;}
 .plot.ready{background:#4caf50;}
-.plot img{max-width:80%;max-height:80%;}
-.plot span{position:absolute;bottom:2px;font-size:12px;color:#000;}
-table{width:100%;border-collapse:collapse;margin-top:10px;}
-table,th,td{border:1px solid #ccc;}
-th,td{padding:6px;text-align:center;}
-.admin-btn{background:#d32f2f;}
+.plot img{width:80%;height:80%;}
+#animals{margin-top:10px;}
+.animal{display:inline-block;margin:5px;padding:5px;border:1px solid #666;border-radius:5px;}
 </style>
 </head>
 <body>
 <h1>🌾 Ferma lui Ion</h1>
 
-<div id="login-area">
-  <div id="not-logged">
-    <input id="login-username" placeholder="Username"><br><br>
-    <input id="login-password" placeholder="Parolă" type="password"><br><br>
-    <button id="login-btn">Loghează</button>
-    <button id="show-register-btn" style="background:#388e3c">Înregistrează</button>
-    <div id="register-area" style="display:none;margin-top:10px;">
-      <input id="reg-username" placeholder="Username"><br><br>
-      <input id="reg-password" placeholder="Parolă" type="password"><br><br>
-      <select id="reg-role"><option value="user">User</option><option value="admin">Admin</option></select><br><br>
-      <button id="register-btn">Creează cont</button>
-      <button id="cancel-register" style="background:#888">Anulează</button>
-      <div id="reg-msg" class="muted"></div>
-    </div>
-  </div>
-  <div id="logged" style="display:none;">
-    <p class="muted">Logat ca <strong id="me-username"></strong> (<span id="me-role"></span>)</p>
-    <button id="logout-btn">Deconectează</button>
-  </div>
-</div>
-
-<div id="farm-area" style="display:none;">
-  <h2>🪴 Parcela ta de pământ</h2>
-  <div class="muted" id="farm-level">Nivel fermă: 1</div>
+<div>
+  <h2>Parcela ta de pământ</h2>
   <div id="plots"></div>
-
-  <h3>Resurse colectate</h3>
-  <div>🌾 Grâu: <span id="grain-count">0</span></div>
-  <div>🥕 Legume: <span id="veg-count">0</span></div>
-  <div>🍎 Fructe: <span id="fruit-count">0</span></div>
-  <div>🌳 Pomi: <span id="tree-count">0</span></div>
-  <div class="muted">💰 Monede: <span id="coins-count">0</span></div>
+  <button id="tractor-btn">🚜 Folosește Tractor (colectează automat)</button>
 </div>
 
-<div id="shop-area" style="display:none;">
-  <h2>🛒 Magazin</h2>
-  <button onclick="sellAll()">Vinde toate resursele</button>
-  <p>Prețuri: Grâu 2, Legume 3, Fructe 5, Pom 20 monede</p>
-</div>
+<h2>Resurse</h2>
+<div>🌾 Grâu: <span id="grain-count">0</span></div>
+<div>🥕 Legume: <span id="veg-count">0</span></div>
+<div>🍎 Fructe: <span id="fruit-count">0</span></div>
+<div>💰 Monede: <span id="coins-count">0</span></div>
+
+<h2>Animale</h2>
+<div id="animals"></div>
+<button id="buy-chicken">Cumpără Găină 🐓 (10 monede)</button>
+<button id="buy-cow">Cumpără Capră 🐐 (20 monede)</button>
 
 <script>
-const STORAGE_USERS='farm_users_adv_v2';
-const plantTimes={'Grâu':10,'Legume':15,'Fructe':20,'Pom':60}; // secunde demo
-const plantImages={
-  'Grâu':'https://i.imgur.com/0F2fU3K.png',
-  'Legume':'https://i.imgur.com/5KJr6qX.png',
-  'Fructe':'https://i.imgur.com/G9tMJnx.png',
-  'Pom':'https://i.imgur.com/6p9X5Rb.png'
-};
-let currentUser=null;
-let currentRole=null;
-let userData={grain:0,veg:0,fruit:0,trees:0,coins:0,plots:[],farmLevel:1,animals:{}};
+let plots = Array(18).fill().map(()=>({type:null,plantedAt:null,ready:false}));
+let resources = {grain:0,veg:0,fruit:0,coins:50};
+let animals = [];
 
-/* ===== LocalStorage ===== */
-function loadUsers(){return JSON.parse(localStorage.getItem(STORAGE_USERS)||'{}');}
-function saveUsers(u){localStorage.setItem(STORAGE_USERS,JSON.stringify(u));}
+const plantTimes = {Grâu:10,Legume:15,Fructe:20};
+const plotsDiv = document.getElementById('plots');
+const grainCount = document.getElementById('grain-count');
+const vegCount = document.getElementById('veg-count');
+const fruitCount = document.getElementById('fruit-count');
+const coinsCount = document.getElementById('coins-count');
+const animalsDiv = document.getElementById('animals');
 
-/* ===== Elemente UI ===== */
-const loginUsername=document.getElementById('login-username');
-const loginPassword=document.getElementById('login-password');
-const loginBtn=document.getElementById('login-btn');
-const showRegBtn=document.getElementById('show-register-btn');
-const registerArea=document.getElementById('register-area');
-const regUsername=document.getElementById('reg-username');
-const regPassword=document.getElementById('reg-password');
-const regRole=document.getElementById('reg-role');
-const registerBtn=document.getElementById('register-btn');
-const cancelRegister=document.getElementById('cancel-register');
-const regMsg=document.getElementById('reg-msg');
-const notLoggedDiv=document.getElementById('not-logged');
-const loggedDiv=document.getElementById('logged');
-const meUsernameEl=document.getElementById('me-username');
-const meRoleEl=document.getElementById('me-role');
-const logoutBtn=document.getElementById('logout-btn');
-const farmArea=document.getElementById('farm-area');
-const shopArea=document.getElementById('shop-area');
-const plotsDiv=document.getElementById('plots');
-const grainCount=document.getElementById('grain-count');
-const vegCount=document.getElementById('veg-count');
-const fruitCount=document.getElementById('fruit-count');
-const treeCount=document.getElementById('tree-count');
-const coinsCount=document.getElementById('coins-count');
-
-/* ===== SHA-256 ===== */
-async function sha256Hex(str){
-  const utf8=new TextEncoder().encode(str);
-  const hash=await crypto.subtle.digest('SHA-256',utf8);
-  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-/* ===== Logare / Registrare ===== */
-showRegBtn.addEventListener('click',()=>{registerArea.style.display='block';});
-cancelRegister.addEventListener('click',()=>{registerArea.style.display='none';regMsg.textContent='';});
-
-registerBtn.addEventListener('click',async()=>{
-  const u=regUsername.value.trim(),p=regPassword.value,role=regRole.value;
-  if(!u||!p){regMsg.textContent='Completează toate câmpurile';return;}
-  const users=loadUsers();
-  if(users[u]){regMsg.textContent='Username deja folosit';return;}
-  const hash=await sha256Hex(p);
-  const plots=Array(18).fill().map(()=>({type:null,plantedAt:null,ready:false}));
-  users[u]={passHash:hash,role:role,grain:0,veg:0,fruit:0,trees:0,coins:0,plots:plots,farmLevel:1,animals:{}};
-  saveUsers(users);
-  regMsg.textContent='Cont creat! Poți să te loghezi.';
-  regUsername.value=''; regPassword.value='';
-  registerArea.style.display='none';
-});
-
-loginBtn.addEventListener('click',async()=>{
-  const u=loginUsername.value.trim(),p=loginPassword.value;
-  if(!u||!p){alert('Completează username și parolă');return;}
-  const users=loadUsers();
-  if(!users[u]){alert('Utilizator inexistent');return;}
-  const hash=await sha256Hex(p);
-  if(hash!==users[u].passHash){alert('Parolă greșită');return;}
-  currentUser=u;
-  currentRole=users[u].role;
-  userData=JSON.parse(JSON.stringify(users[u]));
-  onLogin();
-  loginUsername.value=''; loginPassword.value='';
-});
-
-logoutBtn.addEventListener('click',()=>{currentUser=null; currentRole=null; onLogout();});
-
-/* ===== Login UI ===== */
-function onLogin(){
-  notLoggedDiv.style.display='none';
-  loggedDiv.style.display='block';
-  farmArea.style.display='block';
-  shopArea.style.display='block';
-  meUsernameEl.textContent=currentUser;
-  meRoleEl.textContent=currentRole;
-  renderFarm();
-  updateResourceUI();
-  setInterval(updatePlots,1000);
-  setInterval(randomThief,30000);
-}
-
-/* ===== Logout ===== */
-function onLogout(){
-  notLoggedDiv.style.display='block';
-  loggedDiv.style.display='none';
-  farmArea.style.display='none';
-  shopArea.style.display='none';
-}
-
-/* ===== Farm ===== */
 function renderFarm(){
   plotsDiv.innerHTML='';
-  userData.plots.forEach((p,i)=>{
-    const div=document.createElement('div');
+  plots.forEach((p,i)=>{
+    const div = document.createElement('div');
     div.className='plot';
     if(p.type && !p.ready) div.classList.add('planted');
     if(p.ready) div.classList.add('ready');
-    div.dataset.index=i;
-    div.textContent='';
-    if(p.type){
-      const img=document.createElement('img');
-      img.src=plantImages[p.type];
-      div.appendChild(img);
-      if(!p.ready){
-        const span=document.createElement('span');
-        const elapsed=Math.floor((Date.now()-p.plantedAt)/1000);
-        span.textContent=`${plantTimes[p.type]-elapsed}s`;
-        div.appendChild(span);
-      }
-    } else div.textContent='Pământ gol';
-    div.addEventListener('click',()=>{interactPlot(i);});
+    if(p.type) div.innerHTML = `<img src="${getPlantImage(p.type)}" alt="${p.type}">`;
+    div.addEventListener('click',()=>interactPlot(i));
     plotsDiv.appendChild(div);
   });
 }
 
-function interactPlot(idx){
-  const plot=userData.plots[idx];
-  if(plot.ready){
-    if(plot.type==='Grâu') userData.grain+=1;
-    if(plot.type==='Legume') userData.veg+=1;
-    if(plot.type==='Fructe') userData.fruit+=1;
-    if(plot.type==='Pom') userData.trees+=1;
-    plot.type=null; plot.plantedAt=null; plot.ready=false;
-    saveUserData(); renderFarm(); updateResourceUI();
-  } else if(!plot.type){
-    const choice=prompt('Ce vrei să plantezi? Grâu / Legume / Fructe / Pom','Grâu');
+function getPlantImage(type){
+  if(type==='Grâu') return 'https://i.imgur.com/xA4H0J7.png';
+  if(type==='Legume') return 'https://i.imgur.com/oaN4R2b.png';
+  if(type==='Fructe') return 'https://i.imgur.com/W9f8e6g.png';
+  return '';
+}
+
+function interactPlot(i){
+  const p = plots[i];
+  if(p.ready){
+    if(p.type==='Grâu') resources.grain+=1;
+    if(p.type==='Legume') resources.veg+=1;
+    if(p.type==='Fructe') resources.fruit+=1;
+    p.type=null; p.plantedAt=null; p.ready=false;
+    updateUI();
+    renderFarm();
+  } else if(!p.type){
+    const choice=prompt('Ce vrei să plantezi? Grâu / Legume / Fructe','Grâu');
     if(choice && plantTimes[choice]){
-      plot.type=choice;
-      plot.plantedAt=Date.now();
-      plot.ready=false;
-      saveUserData();
+      p.type=choice;
+      p.plantedAt=Date.now();
+      p.ready=false;
       renderFarm();
     }
   }
 }
 
 function updatePlots(){
-  let changed=false;
-  userData.plots.forEach(p=>{
+  plots.forEach(p=>{
     if(p.type && !p.ready){
-      const elapsed=Math.floor((Date.now()-p.plantedAt)/1000);
-      if(elapsed>=plantTimes[p.type]){p.ready=true; changed=true;}
+      const elapsed = Math.floor((Date.now()-p.plantedAt)/1000);
+      if(elapsed>=plantTimes[p.type]) p.ready=true;
     }
   });
-  if(changed){saveUserData(); renderFarm();}
+  renderFarm();
+  updateUI();
 }
 
-function updateResourceUI(){
-  grainCount.textContent=userData.grain;
-  vegCount.textContent=userData.veg;
-  fruitCount.textContent=userData.fruit;
-  treeCount.textContent=userData.trees;
-  coinsCount.textContent=userData.coins;
+function updateUI(){
+  grainCount.textContent = resources.grain;
+  vegCount.textContent = resources.veg;
+  fruitCount.textContent = resources.fruit;
+  coinsCount.textContent = resources.coins;
+  animalsDiv.innerHTML = '';
+  animals.forEach(a=>{
+    const div = document.createElement('div');
+    div.className='animal';
+    div.textContent=`${a.type} (${a.resources})`;
+    animalsDiv.appendChild(div);
+  });
 }
 
-function saveUserData(){
-  const users=loadUsers();
-  if(!currentUser) return;
-  users[currentUser]=JSON.parse(JSON.stringify(userData));
-  saveUsers(users);
-}
+// Tractor colectează tot automat
+document.getElementById('tractor-btn').addEventListener('click',()=>{
+  plots.forEach(p=>{
+    if(p.ready){
+      if(p.type==='Grâu') resources.grain+=1;
+      if(p.type==='Legume') resources.veg+=1;
+      if(p.type==='Fructe') resources.fruit+=1;
+      p.type=null; p.plantedAt=null; p.ready=false;
+    }
+  });
+  updateUI();
+  renderFarm();
+});
 
-/* ===== Magazin ===== */
-function sellAll(){
-  let total=0;
-  total += userData.grain*2;
-  total += userData.veg*3;
-  total += userData.fruit*5;
-  total += userData.trees*20;
-  userData.coins += total;
-  userData.grain=0; userData.veg=0; userData.fruit=0; userData.trees=0;
-  saveUserData(); updateResourceUI();
-  alert(`Ai primit ${total} monede!`);
-}
+// Cumpărare animale
+document.getElementById('buy-chicken').addEventListener('click',()=>{
+  if(resources.coins>=10){animals.push({type:'Găină',resources:0}); resources.coins-=10; updateUI();}
+});
+document.getElementById('buy-cow').addEventListener('click',()=>{
+  if(resources.coins>=20){animals.push({type:'Capră',resources:0}); resources.coins-=20; updateUI();}
+});
 
-/* ===== Hoti ===== */
-function randomThief(){
-  const totalResources = userData.grain + userData.veg + userData.fruit + userData.trees;
-  if(totalResources===0) return;
-  const steal = Math.floor(totalResources * 0.2); // fură 20%
-  if(steal>0){
-    // eliminăm resurse random
-    ['grain','veg','fruit','trees'].forEach(r=>{
-      const amount = Math.floor(userData[r]*0.2);
-      userData[r] -= amount;
-    });
-    saveUserData(); updateResourceUI();
-    alert('Hoti au furat o parte din resurse!');
-  }
-}
+// Animalele produc resurse automat
+setInterval(()=>{
+  animals.forEach(a=>{
+    a.resources += 1; // fiecare animal produce 1 unitate
+    if(a.type==='Găină') resources.eggs = (resources.eggs||0)+1;
+    if(a.type==='Capră') resources.milk = (resources.milk||0)+1;
+  });
+  updateUI();
+},5000);
+
+// Actualizare ferme
+setInterval(updatePlots,1000);
+renderFarm();
+updateUI();
 </script>
 </body>
 </html>
