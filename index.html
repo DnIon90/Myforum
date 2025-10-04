@@ -2,206 +2,277 @@
 <html lang="ro">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FPS Strategie Multiplayer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ferma lui Ion - Monede și Animale</title>
 <style>
-body{margin:0;padding:0;font-family:Arial,sans-serif;background:#222;color:#fff;text-align:center;}
-#login-area, #game-area{margin-top:20px;}
-canvas{background:#444;display:block;margin:20px auto;border:2px solid #000;}
-button,input{padding:8px;margin:5px;}
-#leaderboard{margin-top:10px;}
+body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:20px;}
+h1,h2,h3{color:#2e7d32;margin:5px 0;}
+input,button,select{padding:6px;border-radius:5px;border:1px solid #ccc;font-size:14px;}
+button{background:#2e7d32;color:#fff;border:0;cursor:pointer;}
+button:hover{background:#1b5e20;}
+.muted{color:#666;font-size:13px;}
+#login-area,#farm-area,#admin-area,#shop-area{margin-bottom:20px;}
+#plots{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
+.plot{width:100px;height:100px;background:#a0522d;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;position:relative;font-weight:bold;transition:background 0.3s;}
+.plot.planted{background:#fdd835;}
+.plot.ready{background:#4caf50;}
+.plot img{max-width:80%;max-height:80%;}
+.plot span{position:absolute;bottom:2px;font-size:12px;color:#000;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+table,th,td{border:1px solid #ccc;}
+th,td{padding:6px;text-align:center;}
+.admin-btn{background:#d32f2f;}
 </style>
 </head>
 <body>
+<h1>🌾 Ferma lui Ion</h1>
 
 <div id="login-area">
-  <h2>Login / Înregistrare</h2>
-  <input type="text" id="username" placeholder="Username"><br>
-  <input type="password" id="password" placeholder="Parolă"><br>
-  <button id="login-btn">Login</button>
-  <button id="register-btn">Înregistrează</button>
-  <div id="login-msg" style="color:red"></div>
-</div>
-
-<div id="game-area" style="display:none;">
-  <h2>🔫 FPS Strategie Multiplayer</h2>
-  <canvas id="game-canvas" width="800" height="400"></canvas>
-  <div>Scor: <span id="score">0</span> | Timp: <span id="time">0</span>s | Nivel: <span id="level">1</span> | Rang: <span id="rank">Novice</span></div>
-  <div id="leaderboard">
-    <h3>Leaderboard</h3>
-    <ul id="lb-list"></ul>
+  <div id="not-logged">
+    <input id="login-username" placeholder="Username"><br><br>
+    <input id="login-password" placeholder="Parolă" type="password"><br><br>
+    <button id="login-btn">Loghează</button>
+    <button id="show-register-btn" style="background:#388e3c">Înregistrează</button>
+    <div id="register-area" style="display:none;margin-top:10px;">
+      <input id="reg-username" placeholder="Username"><br><br>
+      <input id="reg-password" placeholder="Parolă" type="password"><br><br>
+      <select id="reg-role"><option value="user">User</option><option value="admin">Admin</option></select><br><br>
+      <button id="register-btn">Creează cont</button>
+      <button id="cancel-register" style="background:#888">Anulează</button>
+      <div id="reg-msg" class="muted"></div>
+    </div>
   </div>
-  <button id="logout-btn">Logout</button>
+  <div id="logged" style="display:none;">
+    <p class="muted">Logat ca <strong id="me-username"></strong> (<span id="me-role"></span>)</p>
+    <button id="logout-btn">Deconectează</button>
+  </div>
 </div>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<div id="farm-area" style="display:none;">
+  <h2>🪴 Parcela ta de pământ</h2>
+  <div class="muted" id="farm-level">Nivel fermă: 1</div>
+  <div id="plots"></div>
+
+  <h3>Resurse colectate</h3>
+  <div>🌾 Grâu: <span id="grain-count">0</span></div>
+  <div>🥕 Legume: <span id="veg-count">0</span></div>
+  <div>🍎 Fructe: <span id="fruit-count">0</span></div>
+  <div>🌳 Pomi: <span id="tree-count">0</span></div>
+  <div class="muted">💰 Monede: <span id="coins-count">0</span></div>
+</div>
+
+<div id="shop-area" style="display:none;">
+  <h2>🛒 Magazin</h2>
+  <button onclick="sellAll()">Vinde toate resursele</button>
+  <p>Prețuri: Grâu 2, Legume 3, Fructe 5, Pom 20 monede</p>
+</div>
 
 <script>
-// 🔹 Config Firebase (înlocuiește cu datele tale)
-const firebaseConfig = {
-  apiKey: "APIKEY",
-  authDomain: "PROJECTID.firebaseapp.com",
-  databaseURL: "https://PROJECTID.firebaseio.com",
-  projectId: "PROJECTID",
-  storageBucket: "PROJECTID.appspot.com",
-  messagingSenderId: "SENDERID",
-  appId: "APPID"
+const STORAGE_USERS='farm_users_adv_v2';
+const plantTimes={'Grâu':10,'Legume':15,'Fructe':20,'Pom':60}; // secunde demo
+const plantImages={
+  'Grâu':'https://i.imgur.com/0F2fU3K.png',
+  'Legume':'https://i.imgur.com/5KJr6qX.png',
+  'Fructe':'https://i.imgur.com/G9tMJnx.png',
+  'Pom':'https://i.imgur.com/6p9X5Rb.png'
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+let currentUser=null;
+let currentRole=null;
+let userData={grain:0,veg:0,fruit:0,trees:0,coins:0,plots:[],farmLevel:1,animals:{}};
 
-// 🔹 Elemente UI
-const loginArea = document.getElementById('login-area');
-const gameArea = document.getElementById('game-area');
-const usernameInput = document.getElementById('username');
-const passwordInput = document.getElementById('password');
-const loginBtn = document.getElementById('login-btn');
-const registerBtn = document.getElementById('register-btn');
-const loginMsg = document.getElementById('login-msg');
-const logoutBtn = document.getElementById('logout-btn');
-const scoreEl = document.getElementById('score');
-const timeEl = document.getElementById('time');
-const levelEl = document.getElementById('level');
-const rankEl = document.getElementById('rank');
-const lbList = document.getElementById('lb-list');
+/* ===== LocalStorage ===== */
+function loadUsers(){return JSON.parse(localStorage.getItem(STORAGE_USERS)||'{}');}
+function saveUsers(u){localStorage.setItem(STORAGE_USERS,JSON.stringify(u));}
 
-// 🔹 Variabile joc
-let canvas = document.getElementById('game-canvas');
-let ctx = canvas.getContext('2d');
-let player = {x:50,y:200,width:30,height:30,color:'red',vx:0,vy:0};
-let bullets = [];
-let enemies = [];
-let score = 0;
-let timePlayed = 0;
-let level = 1;
-let rank = 'Novice';
-let gameInterval;
-let currentUser = null;
+/* ===== Elemente UI ===== */
+const loginUsername=document.getElementById('login-username');
+const loginPassword=document.getElementById('login-password');
+const loginBtn=document.getElementById('login-btn');
+const showRegBtn=document.getElementById('show-register-btn');
+const registerArea=document.getElementById('register-area');
+const regUsername=document.getElementById('reg-username');
+const regPassword=document.getElementById('reg-password');
+const regRole=document.getElementById('reg-role');
+const registerBtn=document.getElementById('register-btn');
+const cancelRegister=document.getElementById('cancel-register');
+const regMsg=document.getElementById('reg-msg');
+const notLoggedDiv=document.getElementById('not-logged');
+const loggedDiv=document.getElementById('logged');
+const meUsernameEl=document.getElementById('me-username');
+const meRoleEl=document.getElementById('me-role');
+const logoutBtn=document.getElementById('logout-btn');
+const farmArea=document.getElementById('farm-area');
+const shopArea=document.getElementById('shop-area');
+const plotsDiv=document.getElementById('plots');
+const grainCount=document.getElementById('grain-count');
+const vegCount=document.getElementById('veg-count');
+const fruitCount=document.getElementById('fruit-count');
+const treeCount=document.getElementById('tree-count');
+const coinsCount=document.getElementById('coins-count');
 
-// 🔹 Login / Register LocalStorage
-function saveUsers(users){localStorage.setItem('fps_users',JSON.stringify(users));}
-function loadUsers(){return JSON.parse(localStorage.getItem('fps_users')||'{}');}
+/* ===== SHA-256 ===== */
+async function sha256Hex(str){
+  const utf8=new TextEncoder().encode(str);
+  const hash=await crypto.subtle.digest('SHA-256',utf8);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
-registerBtn.onclick = ()=>{
-  const u = usernameInput.value.trim();
-  const p = passwordInput.value;
-  if(!u||!p){loginMsg.textContent='Completează toate câmpurile'; return;}
-  const users = loadUsers();
-  if(users[u]){loginMsg.textContent='Username deja folosit'; return;}
-  users[u]={password:p,score:0,time:0,level:1};
+/* ===== Logare / Registrare ===== */
+showRegBtn.addEventListener('click',()=>{registerArea.style.display='block';});
+cancelRegister.addEventListener('click',()=>{registerArea.style.display='none';regMsg.textContent='';});
+
+registerBtn.addEventListener('click',async()=>{
+  const u=regUsername.value.trim(),p=regPassword.value,role=regRole.value;
+  if(!u||!p){regMsg.textContent='Completează toate câmpurile';return;}
+  const users=loadUsers();
+  if(users[u]){regMsg.textContent='Username deja folosit';return;}
+  const hash=await sha256Hex(p);
+  const plots=Array(18).fill().map(()=>({type:null,plantedAt:null,ready:false}));
+  users[u]={passHash:hash,role:role,grain:0,veg:0,fruit:0,trees:0,coins:0,plots:plots,farmLevel:1,animals:{}};
   saveUsers(users);
-  loginMsg.style.color='green';
-  loginMsg.textContent='Cont creat! Poți să te loghezi.';
-};
-
-loginBtn.onclick = ()=>{
-  const u = usernameInput.value.trim();
-  const p = passwordInput.value;
-  const users = loadUsers();
-  if(!users[u] || users[u].password!==p){loginMsg.textContent='Username sau parolă greșită'; return;}
-  currentUser = u;
-  loginArea.style.display='none';
-  gameArea.style.display='block';
-  startGame(u);
-};
-
-logoutBtn.onclick = ()=>{
-  location.reload();
-};
-
-// 🔹 Controale
-const keys = {};
-document.addEventListener('keydown',e=>keys[e.key]=true);
-document.addEventListener('keyup',e=>keys[e.key]=false);
-document.addEventListener('keydown', e=>{
-  if(e.key===' '){shootBullet();}
+  regMsg.textContent='Cont creat! Poți să te loghezi.';
+  regUsername.value=''; regPassword.value='';
+  registerArea.style.display='none';
 });
 
-// 🔹 Joc
-function startGame(u){
-  score = 0; timePlayed=0; level=1; rank='Novice';
-  player.x = 50; player.y = 200; bullets=[]; enemies=[];
-  if(gameInterval) clearInterval(gameInterval);
-  gameInterval = setInterval(gameLoop,30);
+loginBtn.addEventListener('click',async()=>{
+  const u=loginUsername.value.trim(),p=loginPassword.value;
+  if(!u||!p){alert('Completează username și parolă');return;}
+  const users=loadUsers();
+  if(!users[u]){alert('Utilizator inexistent');return;}
+  const hash=await sha256Hex(p);
+  if(hash!==users[u].passHash){alert('Parolă greșită');return;}
+  currentUser=u;
+  currentRole=users[u].role;
+  userData=JSON.parse(JSON.stringify(users[u]));
+  onLogin();
+  loginUsername.value=''; loginPassword.value='';
+});
 
-  setInterval(()=>{
-    timePlayed++;
-    timeEl.textContent = timePlayed;
-    updateRank();
-    updateLeaderboard();
-    // Salvare scor în LocalStorage și Firebase
-    const users = loadUsers();
-    users[u].score = score;
-    users[u].time = timePlayed;
-    users[u].level = level;
-    saveUsers(users);
-    db.ref('fps_players/'+u).set({username:u,score:score,time:timePlayed,level:level,x:player.x,y:player.y});
-  },1000);
+logoutBtn.addEventListener('click',()=>{currentUser=null; currentRole=null; onLogout();});
+
+/* ===== Login UI ===== */
+function onLogin(){
+  notLoggedDiv.style.display='none';
+  loggedDiv.style.display='block';
+  farmArea.style.display='block';
+  shopArea.style.display='block';
+  meUsernameEl.textContent=currentUser;
+  meRoleEl.textContent=currentRole;
+  renderFarm();
+  updateResourceUI();
+  setInterval(updatePlots,1000);
+  setInterval(randomThief,30000);
 }
 
-function gameLoop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Mișcare player
-  if(keys['ArrowUp'] && player.y>0) player.y -=5;
-  if(keys['ArrowDown'] && player.y+player.height<canvas.height) player.y +=5;
-  if(keys['ArrowLeft'] && player.x>0) player.x -=5;
-  if(keys['ArrowRight'] && player.x+player.width<canvas.width) player.x +=5;
+/* ===== Logout ===== */
+function onLogout(){
+  notLoggedDiv.style.display='block';
+  loggedDiv.style.display='none';
+  farmArea.style.display='none';
+  shopArea.style.display='none';
+}
 
-  // Draw player
-  ctx.fillStyle = player.color;
-  ctx.fillRect(player.x,player.y,player.width,player.height);
-
-  // Obstacole / Enemies
-  if(Math.random()<0.02) enemies.push({x:canvas.width,y:Math.random()*350,width:30,height:30,color:'green'});
-  enemies.forEach((e,i)=>{
-    e.x -= 3+level;
-    ctx.fillStyle=e.color;
-    ctx.fillRect(e.x,e.y,e.width,e.height);
-    // Coliziune player
-    if(collide(player,e)){score=0;player.x=50;player.y=200;enemies=[];level=1;}
-    // Coliziune cu gloanțe
-    bullets.forEach((b,j)=>{
-      if(collide(b,e)){score+=5;enemies.splice(i,1);bullets.splice(j,1);i--; j--;}
-    });
+/* ===== Farm ===== */
+function renderFarm(){
+  plotsDiv.innerHTML='';
+  userData.plots.forEach((p,i)=>{
+    const div=document.createElement('div');
+    div.className='plot';
+    if(p.type && !p.ready) div.classList.add('planted');
+    if(p.ready) div.classList.add('ready');
+    div.dataset.index=i;
+    div.textContent='';
+    if(p.type){
+      const img=document.createElement('img');
+      img.src=plantImages[p.type];
+      div.appendChild(img);
+      if(!p.ready){
+        const span=document.createElement('span');
+        const elapsed=Math.floor((Date.now()-p.plantedAt)/1000);
+        span.textContent=`${plantTimes[p.type]-elapsed}s`;
+        div.appendChild(span);
+      }
+    } else div.textContent='Pământ gol';
+    div.addEventListener('click',()=>{interactPlot(i);});
+    plotsDiv.appendChild(div);
   });
-
-  // Draw bullets
-  bullets.forEach((b,i)=>{b.x+=10; ctx.fillStyle='yellow'; ctx.fillRect(b.x,b.y,b.width,b.height); if(b.x>canvas.width) bullets.splice(i,1);});
-
-  // Update scor / nivel
-  scoreEl.textContent = score;
-  level = Math.floor(score/50)+1;
-  levelEl.textContent = level;
 }
 
-function shootBullet(){bullets.push({x:player.x+player.width,y:player.y+player.height/2-2,width:10,height:4});}
-
-function collide(a,b){
-  return a.x<a.x+b.width && a.x+a.width>b.x && a.y<a.y+b.height && a.y+a.height>b.y;
+function interactPlot(idx){
+  const plot=userData.plots[idx];
+  if(plot.ready){
+    if(plot.type==='Grâu') userData.grain+=1;
+    if(plot.type==='Legume') userData.veg+=1;
+    if(plot.type==='Fructe') userData.fruit+=1;
+    if(plot.type==='Pom') userData.trees+=1;
+    plot.type=null; plot.plantedAt=null; plot.ready=false;
+    saveUserData(); renderFarm(); updateResourceUI();
+  } else if(!plot.type){
+    const choice=prompt('Ce vrei să plantezi? Grâu / Legume / Fructe / Pom','Grâu');
+    if(choice && plantTimes[choice]){
+      plot.type=choice;
+      plot.plantedAt=Date.now();
+      plot.ready=false;
+      saveUserData();
+      renderFarm();
+    }
+  }
 }
 
-// Ranguri
-function updateRank(){
-  if(score<50) rank='Novice';
-  else if(score<100) rank='Intermediate';
-  else if(score<200) rank='Pro';
-  else rank='Master';
-  rankEl.textContent = rank;
-}
-
-// Leaderboard
-function updateLeaderboard(){
-  db.ref('fps_players').orderByChild('score').limitToLast(5).once('value',snap=>{
-    lbList.innerHTML='';
-    snap.forEach(child=>{
-      const p = child.val();
-      const li = document.createElement('li');
-      li.textContent = `${p.username} - Scor: ${p.score} Timp: ${p.time}s Nivel: ${p.level}`;
-      lbList.prepend(li);
-    });
+function updatePlots(){
+  let changed=false;
+  userData.plots.forEach(p=>{
+    if(p.type && !p.ready){
+      const elapsed=Math.floor((Date.now()-p.plantedAt)/1000);
+      if(elapsed>=plantTimes[p.type]){p.ready=true; changed=true;}
+    }
   });
+  if(changed){saveUserData(); renderFarm();}
+}
+
+function updateResourceUI(){
+  grainCount.textContent=userData.grain;
+  vegCount.textContent=userData.veg;
+  fruitCount.textContent=userData.fruit;
+  treeCount.textContent=userData.trees;
+  coinsCount.textContent=userData.coins;
+}
+
+function saveUserData(){
+  const users=loadUsers();
+  if(!currentUser) return;
+  users[currentUser]=JSON.parse(JSON.stringify(userData));
+  saveUsers(users);
+}
+
+/* ===== Magazin ===== */
+function sellAll(){
+  let total=0;
+  total += userData.grain*2;
+  total += userData.veg*3;
+  total += userData.fruit*5;
+  total += userData.trees*20;
+  userData.coins += total;
+  userData.grain=0; userData.veg=0; userData.fruit=0; userData.trees=0;
+  saveUserData(); updateResourceUI();
+  alert(`Ai primit ${total} monede!`);
+}
+
+/* ===== Hoti ===== */
+function randomThief(){
+  const totalResources = userData.grain + userData.veg + userData.fruit + userData.trees;
+  if(totalResources===0) return;
+  const steal = Math.floor(totalResources * 0.2); // fură 20%
+  if(steal>0){
+    // eliminăm resurse random
+    ['grain','veg','fruit','trees'].forEach(r=>{
+      const amount = Math.floor(userData[r]*0.2);
+      userData[r] -= amount;
+    });
+    saveUserData(); updateResourceUI();
+    alert('Hoti au furat o parte din resurse!');
+  }
 }
 </script>
 </body>
