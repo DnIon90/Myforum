@@ -3,214 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Galerie cu Foldere Vizibile</title>
+<title>Mini TikTok</title>
 <style>
-body{font-family:Arial,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padding:18px}
-.wrap{max-width:900px;margin:0 auto}
-h1{text-align:center}
-input,button,select{padding:8px;margin:4px;border-radius:6px;border:1px solid #ccc}
-button{background:#0077ff;color:#fff;border:none;cursor:pointer}
-button:hover{background:#0059c9}
-.hidden{display:none}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px}
-img,video{max-width:100%;max-height:100px;border-radius:6px;object-fit:cover}
-.card{background:#fff;padding:6px;border-radius:6px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
-.card button, .card select{margin:2px;font-size:11px;padding:4px 6px}
-.stats{margin-top:10px;font-size:14px;color:#333;text-align:center}
-.folder{font-size:60px;color:gold;text-align:center;cursor:pointer}
-.folderName{font-size:14px;margin-top:4px;color:#222}
+body,html {margin:0;padding:0;height:100%;font-family:sans-serif;background:#000;color:#fff;}
+#authDiv, #appDiv {padding:20px;}
+.hidden{display:none;}
+video {width:100%;height:100vh;object-fit:cover;}
+.feed {scroll-snap-type:y mandatory;overflow-y:scroll;height:100vh;}
+.post {scroll-snap-align:start;position:relative;}
+.overlay {position:absolute;bottom:10%;left:10px;color:#fff;}
+button {background:rgba(255,255,255,0.3);border:none;border-radius:4px;margin:2px;padding:6px;color:#fff;cursor:pointer;}
+button:hover{background:rgba(255,255,255,0.6);}
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>📂 Galerie Poze & Video</h1>
 
 <div id="authDiv">
-<h2>Login / Register</h2>
-<input id="username" placeholder="Username"><br>
-<input id="password" type="password" placeholder="Parolă"><br>
-<button id="btnLogin">Login</button>
-<button id="btnRegister">Register</button>
-<div id="authMsg" style="color:red;margin-top:6px"></div>
+  <h2>Login / Register</h2>
+  <input id="username" placeholder="Username"><br>
+  <input id="password" type="password" placeholder="Parola"><br>
+  <button id="btnLogin">Login</button>
+  <button id="btnRegister">Register</button>
+  <div id="authMsg" style="color:red"></div>
 </div>
 
 <div id="appDiv" class="hidden">
-<button id="btnLogout">Logout</button>
-
-<div>
-<button id="btnBack" class="hidden">⬅ Înapoi</button>
-<button id="btnNewFolder">+ Nou Folder</button>
-</div>
-
-<h2>Upload Poze & Video</h2>
-<input type="file" id="fileInput" multiple accept="image/*,video/*"><br>
-<button id="btnUpload">Încarcă</button>
-
-<div class="stats" id="statsDiv"></div>
-
-<h3>Galeria</h3>
-<div id="gallery" class="grid"></div>
-</div>
+  <button id="btnLogout">Logout</button>
+  <h3>Încarcă un video nou</h3>
+  <input type="file" id="fileInput" accept="video/*"><br>
+  <button id="btnUpload">Upload</button>
+  <div class="feed" id="feed"></div>
 </div>
 
 <script>
-// ------------------------
-// Date
-// ------------------------
-let users = JSON.parse(localStorage.getItem('users') || '{}');
-let currentUser = localStorage.getItem('currentUser') || null;
-let path = ["Principal"]; // folder curent
+let users = JSON.parse(localStorage.getItem('users')||'{}');
+let currentUser = localStorage.getItem('currentUser')||null;
+function save(){ localStorage.setItem('users', JSON.stringify(users)); }
 
-function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
-function getCurrentFolder(){
-  let obj = users[currentUser].folders;
-  for(let p of path){ obj=obj[p]; }
-  return obj;
-}
-function showAuth(msg){ 
-  document.getElementById('authDiv').classList.remove('hidden'); 
-  document.getElementById('appDiv').classList.add('hidden'); 
-  document.getElementById('authMsg').innerText=msg||'';
+function showAuth(msg=""){ 
+  document.getElementById("authDiv").classList.remove("hidden");
+  document.getElementById("appDiv").classList.add("hidden");
+  document.getElementById("authMsg").innerText=msg;
 }
 function showApp(){ 
-  document.getElementById('authDiv').classList.add('hidden'); 
-  document.getElementById('appDiv').classList.remove('hidden'); 
-  if(!users[currentUser].folders) users[currentUser].folders = { "Principal": { files:[], subfolders:{} } };
-  loadGallery();
-  updateStats();
+  document.getElementById("authDiv").classList.add("hidden");
+  document.getElementById("appDiv").classList.remove("hidden");
+  loadFeed();
 }
 
-// ------------------------
-// Login & Register
-// ------------------------
-document.getElementById('btnRegister').addEventListener('click', ()=>{
-  const u = document.getElementById('username').value.trim();
-  const p = document.getElementById('password').value.trim();
-  if(!u||!p){ showAuth('Completează username și parolă'); return;}
-  if(users[u]){ showAuth('Username deja există'); return;}
-  users[u] = { password: p, folders: { "Principal": { files:[], subfolders:{} } } };
-  saveUsers();
-  showAuth('Cont creat, te poți loga');
-});
-
-document.getElementById('btnLogin').addEventListener('click', ()=>{
-  const u = document.getElementById('username').value.trim();
-  const p = document.getElementById('password').value.trim();
-  if(!u||!p){ showAuth('Completează username și parolă'); return;}
-  if(!users[u] || users[u].password !== p){ showAuth('Username/parolă incorecte'); return;}
-  currentUser = u;
-  localStorage.setItem("currentUser", currentUser);
-  path=["Principal"];
+document.getElementById("btnRegister").onclick=()=>{
+  let u=document.getElementById("username").value.trim();
+  let p=document.getElementById("password").value.trim();
+  if(!u||!p){showAuth("Completează datele");return;}
+  if(users[u]){showAuth("User deja există");return;}
+  users[u]={password:p,posts:[]}; save();
+  showAuth("Cont creat, loghează-te!");
+}
+document.getElementById("btnLogin").onclick=()=>{
+  let u=document.getElementById("username").value.trim();
+  let p=document.getElementById("password").value.trim();
+  if(!u||!p){showAuth("Completează datele");return;}
+  if(!users[u]||users[u].password!==p){showAuth("Date greșite");return;}
+  currentUser=u; localStorage.setItem("currentUser",currentUser);
   showApp();
-});
+}
+document.getElementById("btnLogout").onclick=()=>{
+  currentUser=null; localStorage.removeItem("currentUser"); showAuth();
+}
 
-document.getElementById('btnLogout').addEventListener('click', ()=>{
-  currentUser = null;
-  localStorage.removeItem("currentUser");
-  showAuth();
-});
-
-// ------------------------
-// Upload
-// ------------------------
-document.getElementById('btnUpload').addEventListener('click', ()=>{
+document.getElementById("btnUpload").onclick=()=>{
   if(!currentUser) return;
-  const files = document.getElementById('fileInput').files;
-  if(files.length===0){ alert('Selectează fișiere'); return;}
-  const folder=getCurrentFolder();
-  for(const f of files){
-    const url = URL.createObjectURL(f); 
-    folder.files.push({name:f.name,type:f.type,data:url});
+  let f=document.getElementById("fileInput").files[0];
+  if(!f){alert("Alege un video");return;}
+  let url=URL.createObjectURL(f);
+  users[currentUser].posts.push({video:url,likes:0,comments:[]});
+  save(); loadFeed();
+}
+
+function loadFeed(){
+  let feed=document.getElementById("feed"); feed.innerHTML="";
+  for(let u in users){
+    users[u].posts.forEach((post,idx)=>{
+      let div=document.createElement("div");
+      div.className="post";
+      let v=document.createElement("video");
+      v.src=post.video; v.controls=true; v.loop=true; v.autoplay=false;
+      let overlay=document.createElement("div"); overlay.className="overlay";
+      let like=document.createElement("button");
+      like.innerText="❤️ "+post.likes;
+      like.onclick=()=>{post.likes++; save(); loadFeed();}
+      let comment=document.createElement("button");
+      comment.innerText="💬 "+post.comments.length;
+      comment.onclick=()=>{
+        let c=prompt("Comentariu:");
+        if(c){post.comments.push({user:currentUser,text:c}); save(); loadFeed();}
+      }
+      overlay.appendChild(like); overlay.appendChild(comment);
+      div.appendChild(v); div.appendChild(overlay);
+      feed.appendChild(div);
+    });
   }
-  saveUsers();
-  loadGallery();
-  updateStats();
-});
-
-// ------------------------
-// Galerie
-// ------------------------
-function loadGallery(){
-  if(!currentUser) return;
-  const gal = document.getElementById('gallery');
-  gal.innerHTML = '';
-  const folder=getCurrentFolder();
-
-  // buton înapoi
-  document.getElementById("btnBack").classList.toggle("hidden", path.length<=1);
-
-  // afiseaza subfoldere
-  for(const fname in folder.subfolders){
-    const card=document.createElement("div"); card.className="card";
-    const icon=document.createElement("div"); icon.className="folder"; icon.innerHTML="📁";
-    icon.onclick=()=>{ path.push(fname); loadGallery(); updateStats(); };
-    const label=document.createElement("div"); label.className="folderName"; label.innerText=fname;
-    card.appendChild(icon); card.appendChild(label);
-    gal.appendChild(card);
-  }
-
-  // afiseaza fisiere
-  folder.files.forEach((f,i)=>{
-    const card = document.createElement('div'); card.className='card';
-    if(f.type.startsWith('image/')){
-      const img = document.createElement('img'); img.src=f.data; card.appendChild(img);
-    } else if(f.type.startsWith('video/')){
-      const v = document.createElement('video'); v.src=f.data; v.controls=true; card.appendChild(v);
-    }
-    const dl = document.createElement('button'); dl.textContent="Descărcare";
-    dl.onclick=()=>downloadFile(f);
-    const del = document.createElement('button'); del.textContent="Ștergere";
-    del.onclick=()=>{folder.files.splice(i,1); saveUsers(); loadGallery(); updateStats();};
-    card.appendChild(document.createElement('br'));
-    card.appendChild(dl); card.appendChild(del);
-    gal.appendChild(card);
-  });
 }
 
-// ------------------------
-// Foldere
-// ------------------------
-document.getElementById("btnNewFolder").addEventListener("click",()=>{
-  const name=prompt("Nume folder nou:");
-  if(!name) return;
-  const folder=getCurrentFolder();
-  if(folder.subfolders[name]){alert("Există deja!");return;}
-  folder.subfolders[name]={ files:[], subfolders:{} };
-  saveUsers();
-  loadGallery();
-});
-document.getElementById("btnBack").addEventListener("click",()=>{
-  if(path.length>1){ path.pop(); loadGallery(); updateStats(); }
-});
-
-// ------------------------
-// Extra
-// ------------------------
-function updateStats(){
-  if(!currentUser) return;
-  const folder=getCurrentFolder();
-  const images = folder.files.filter(f=>f.type.startsWith('image/')).length;
-  const videos = folder.files.filter(f=>f.type.startsWith('video/')).length;
-  document.getElementById('statsDiv').innerText = 
-    `Folder: ${path.join("/")} | Poze: ${images} | Video: ${videos} | Total: ${folder.files.length}`;
-}
-function downloadFile(f){
-  const a = document.createElement('a');
-  a.href = f.data;
-  a.download = f.name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-// ------------------------
-// La încărcare
-// ------------------------
-if (currentUser && users[currentUser]) {
-  showApp();
-} else {
-  showAuth();
-}
+// la reload
+if(currentUser && users[currentUser]) showApp(); else showAuth();
 </script>
 </body>
 </html>
