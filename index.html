@@ -10,16 +10,18 @@ body{font-family:Arial,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padd
 h1{text-align:center}
 input,button{padding:10px;margin:4px;border-radius:6px;border:1px solid #ccc}
 button{background:#0077ff;color:#fff;border:none;cursor:pointer}
+button:hover{background:#0059c9}
 .hidden{display:none}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:12px}
 img,video{max-width:100%;border-radius:6px}
-.card{background:#fff;padding:6px;border-radius:6px}
-.stats{margin-top:6px;font-size:14px;color:#333}
+.card{background:#fff;padding:6px;border-radius:6px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+.card button{margin:4px;font-size:12px;padding:6px 8px}
+.stats{margin-top:10px;font-size:14px;color:#333;text-align:center}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>Galerie Poze & Video</h1>
+<h1>📸 Galerie Poze & Video</h1>
 
 <div id="authDiv">
 <h2>Login / Register</h2>
@@ -45,16 +47,28 @@ img,video{max-width:100%;border-radius:6px}
 </div>
 
 <script>
-// Simulare stocare utilizatori în localStorage
+// ------------------------
+// Stocare locală utilizatori
+// ------------------------
 let users = JSON.parse(localStorage.getItem('users') || '{}');
 let currentUser = null;
 
-// Helpers
 function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
-function showAuth(msg){ document.getElementById('authDiv').classList.remove('hidden'); document.getElementById('appDiv').classList.add('hidden'); document.getElementById('authMsg').innerText=msg||'';}
-function showApp(){ document.getElementById('authDiv').classList.add('hidden'); document.getElementById('appDiv').classList.remove('hidden'); loadGallery(); updateStats();}
+function showAuth(msg){ 
+  document.getElementById('authDiv').classList.remove('hidden'); 
+  document.getElementById('appDiv').classList.add('hidden'); 
+  document.getElementById('authMsg').innerText=msg||'';
+}
+function showApp(){ 
+  document.getElementById('authDiv').classList.add('hidden'); 
+  document.getElementById('appDiv').classList.remove('hidden'); 
+  loadGallery(); 
+  updateStats();
+}
 
-// Login/Register
+// ------------------------
+// Login & Register
+// ------------------------
 document.getElementById('btnRegister').addEventListener('click', ()=>{
   const u = document.getElementById('username').value.trim();
   const p = document.getElementById('password').value.trim();
@@ -78,7 +92,9 @@ document.getElementById('btnLogout').addEventListener('click', ()=>{
   currentUser = null; showAuth();
 });
 
+// ------------------------
 // Upload
+// ------------------------
 document.getElementById('btnUpload').addEventListener('click', ()=>{
   if(!currentUser) return;
   const files = document.getElementById('fileInput').files;
@@ -95,32 +111,65 @@ document.getElementById('btnUpload').addEventListener('click', ()=>{
   }
 });
 
-// Load gallery
+// ------------------------
+// Galerie
+// ------------------------
 function loadGallery(){
   if(!currentUser) return;
   const gal = document.getElementById('gallery');
   gal.innerHTML = '';
-  users[currentUser].files.forEach(f=>{
-    const card = document.createElement('div'); card.className='card';
+  users[currentUser].files.forEach((f,i)=>{
+    const card = document.createElement('div'); 
+    card.className='card';
+    
     if(f.type.startsWith('image/')){
       const img = document.createElement('img'); img.src=f.data; card.appendChild(img);
     } else if(f.type.startsWith('video/')){
       const v = document.createElement('video'); v.src=f.data; v.controls=true; card.appendChild(v);
     }
+    
+    // Butoane descărcare & ștergere
+    const dl = document.createElement('button'); dl.textContent="Descărcare";
+    dl.onclick=()=>downloadFile(f);
+    const del = document.createElement('button'); del.textContent="Ștergere";
+    del.onclick=()=>deleteFile(i);
+    card.appendChild(document.createElement('br'));
+    card.appendChild(dl); card.appendChild(del);
+
     gal.appendChild(card);
   });
 }
 
-// Update statistics
+// ------------------------
+// Funcții extra
+// ------------------------
 function updateStats(){
   if(!currentUser) return;
   const files = users[currentUser].files;
   const images = files.filter(f=>f.type.startsWith('image/')).length;
   const videos = files.filter(f=>f.type.startsWith('video/')).length;
-  document.getElementById('statsDiv').innerText = `Poze: ${images} | Videoclipuri: ${videos} | Total: ${files.length}`;
+  document.getElementById('statsDiv').innerText = 
+    `Poze: ${images} | Videoclipuri: ${videos} | Total fișiere: ${files.length}`;
 }
 
-// La încărcare
+function deleteFile(index){
+  if(!currentUser) return;
+  users[currentUser].files.splice(index,1);
+  saveUsers();
+  loadGallery();
+  updateStats();
+}
+
+function downloadFile(f){
+  const a = document.createElement('a');
+  a.href = f.data;
+  a.download = f.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ------------------------
 showAuth();
 </script>
 </body>
