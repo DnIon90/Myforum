@@ -3,39 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Bitcoin Miner</title>
+<title>Mini Bitcoin Miner Animat</title>
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background: linear-gradient(120deg, #0a0a0a, #222);
-        color: #fff;
-        text-align: center;
-        padding: 30px;
-    }
-    h1 { font-size: 2em; margin-bottom: 10px; }
-    #coins { font-size: 2em; margin: 20px 0; }
-    button {
-        font-size: 1.2em;
-        padding: 15px 30px;
-        background: gold;
-        color: #000;
-        border: none;
-        border-radius: 10px;
-        margin: 10px;
-        cursor: pointer;
-        transition: 0.3s;
-    }
-    button:hover { transform: scale(1.1); }
-    input { font-size: 1em; padding: 10px; margin: 5px; width: 80%; border-radius: 5px; }
+body {
+    margin:0;
+    padding:0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(120deg, #111, #333);
+    color: #fff;
+    overflow-x: hidden;
+    text-align: center;
+}
+h1 { margin: 20px 0; }
+#coins { font-size: 2em; margin: 20px 0; }
+canvas { display: block; margin: 0 auto; background: #222; border-radius: 10px; }
+
+button, input {
+    font-size: 1em;
+    padding: 10px;
+    margin: 5px;
+    border-radius: 5px;
+}
+button { background: gold; color:#000; border:none; cursor:pointer; transition:0.3s; }
+button:hover { transform: scale(1.1); }
+input { width: 80%; }
 </style>
 </head>
 <body>
 
-<h1>Mini Bitcoin Miner</h1>
-<p>Apasă “Minează” sau așteaptă mining automat!</p>
-
+<h1>Mini Bitcoin Miner Animat</h1>
 <div id="coins">0.000000 BTC</div>
-<button onclick="mineCoin()">Minează acum</button>
+<canvas id="canvas" width="350" height="400"></canvas>
 
 <h2>Retragere pe PayPal</h2>
 <input type="email" id="email" placeholder="Email PayPal" />
@@ -44,49 +42,105 @@
 <pre id="result"></pre>
 
 <script>
-let coins = 0;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-// Mining manual
-function mineCoin() {
-    coins += 0.0001;
-    updateDisplay();
+let coins = 0;
+const fallingCoins = [];
+
+// Creează monede noi aleator
+function spawnCoin() {
+    fallingCoins.push({
+        x: Math.random() * canvas.width,
+        y: 0,
+        radius: 10 + Math.random() * 10,
+        speed: 1 + Math.random()*2
+    });
 }
 
-// Mining automat
-setInterval(() => {
-    coins += 0.00001;
-    updateDisplay();
-}, 1000);
+// Update poziții și desen
+function update() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    for(let i = fallingCoins.length-1; i>=0; i--) {
+        const c = fallingCoins[i];
+        c.y += c.speed;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.radius, 0, Math.PI*2);
+        ctx.fillStyle = 'gold';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+
+        // Dacă a ajuns jos, colectează automat
+        if(c.y > canvas.height){
+            coins += 0.0001;
+            fallingCoins.splice(i,1);
+            updateDisplay();
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+// Colectează monedă la click
+canvas.addEventListener('click', function(e){
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    for(let i=fallingCoins.length-1;i>=0;i--){
+        const c = fallingCoins[i];
+        const dx = mouseX - c.x;
+        const dy = mouseY - c.y;
+        if(Math.sqrt(dx*dx+dy*dy) < c.radius){
+            coins += 0.001; // colectare mai mare la click
+            fallingCoins.splice(i,1);
+            updateDisplay();
+        }
+    }
+});
 
 function updateDisplay() {
     document.getElementById('coins').innerText = coins.toFixed(6) + " BTC";
 }
+
+// Spawnează monede la interval
+setInterval(spawnCoin, 800);
+
+// Mining automat (fără click)
+setInterval(()=>{
+    coins += 0.00001;
+    updateDisplay();
+}, 1000);
+
+update(); // start animația
 
 // Withdraw via PayPal backend
 async function withdraw() {
     const email = document.getElementById('email').value;
     const amount = parseFloat(document.getElementById('amount').value);
 
-    if(amount > coins * 1000) { // conversie BTC virtual → USD
-        alert("Nu ai suficiente monede pentru această sumă!");
+    if(amount > coins*1000){
+        alert("Nu ai suficiente monede!");
         return;
     }
 
-    try {
+    try{
         const res = await fetch('https://YOUR_SERVER_DOMAIN/payout', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ email, amount })
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({email, amount})
         });
         const data = await res.json();
-        document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+        document.getElementById('result').innerText = JSON.stringify(data,null,2);
 
-        if(data.batch_header && data.batch_header.batch_status === "SUCCESS") {
-            coins -= amount / 1000; // scade soldul după retragere
+        if(data.batch_header && data.batch_header.batch_status === "SUCCESS"){
+            coins -= amount/1000;
             updateDisplay();
         }
 
-    } catch(e) {
+    } catch(e){
         console.error(e);
         alert("Eroare la retragere.");
     }
