@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Runner Multiplayer</title>
 <style>
-body{font-family:Arial,sans-serif;background:#cce7ff;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;}
+body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;}
 #login-area, #game-area{margin-top:20px;}
 button,input{padding:8px;margin:5px;}
 canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
@@ -36,10 +36,11 @@ canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// 🔹 Config Firebase (înlocuiește cu datele tale)
+// 🔹 Config Firebase (înlocuiește cu valorile tale)
 const firebaseConfig = {
   apiKey: "APIKEY",
   authDomain: "PROJECTID.firebaseapp.com",
@@ -50,6 +51,7 @@ const firebaseConfig = {
   appId: "APPID"
 };
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const db = firebase.database();
 
 // 🔹 Elemente UI
@@ -77,36 +79,33 @@ let timePlayed = 0;
 let level = 1;
 let rank = 'Novice';
 let gameInterval;
-let currentUser = null;
 
-// 🔹 Login / Register cu LocalStorage
-function saveUsers(users){localStorage.setItem('runner_users',JSON.stringify(users));}
-function loadUsers(){return JSON.parse(localStorage.getItem('runner_users')||'{}');}
-
-registerBtn.onclick = ()=>{
+// 🔹 Login / Register
+registerBtn.onclick = () => {
   const u = usernameInput.value.trim();
   const p = passwordInput.value;
-  if(!u||!p){loginMsg.textContent='Completează toate câmpurile'; return;}
-  const users = loadUsers();
-  if(users[u]){loginMsg.textContent='Username deja folosit'; return;}
-  users[u]={password:p,score:0,time:0,level:1};
-  saveUsers(users);
-  loginMsg.style.color='green';
-  loginMsg.textContent='Cont creat! Poți să te loghezi.';
+  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
+  auth.createUserWithEmailAndPassword(u+'@game.com', p)
+    .then(cred=>{
+      db.ref('players/'+cred.user.uid).set({username:u,score:0,time:0,level:1});
+      loginMsg.style.color='green'; loginMsg.textContent='Cont creat!';
+    }).catch(e=>loginMsg.textContent=e.message);
 };
 
-loginBtn.onclick = ()=>{
+loginBtn.onclick = () => {
   const u = usernameInput.value.trim();
   const p = passwordInput.value;
-  const users = loadUsers();
-  if(!users[u] || users[u].password!==p){loginMsg.textContent='Username sau parolă greșită'; return;}
-  currentUser = u;
-  loginArea.style.display='none';
-  gameArea.style.display='block';
-  startGame(u);
+  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
+  auth.signInWithEmailAndPassword(u+'@game.com', p)
+    .then(cred=>{
+      loginArea.style.display='none';
+      gameArea.style.display='block';
+      startGame(cred.user.uid,u);
+    }).catch(e=>loginMsg.textContent=e.message);
 };
 
-logoutBtn.onclick = ()=>{
+logoutBtn.onclick = () => {
+  auth.signOut();
   location.reload();
 };
 
@@ -115,25 +114,20 @@ document.addEventListener('keydown', e=>{
   if(e.code==='Space' && player.onGround){player.vy=-8; player.onGround=false;}
 });
 
-function startGame(u){
-  score = 0; timePlayed = 0; level = 1; rank = 'Novice';
-  player.y = 250; player.vy = 0; player.onGround = true;
-  obstacles = [];
+function startGame(uid,username){
+  score = 0; timePlayed=0; level=1; rank='Novice';
+  player.y=250; player.vy=0; player.onGround=true;
+  obstacles=[];
   if(gameInterval) clearInterval(gameInterval);
-  gameInterval = setInterval(gameLoop,30);
+  gameInterval = setInterval(gameLoop, 30);
 
+  // Update timp și scor în Firebase
   setInterval(()=>{
     timePlayed++;
-    timeEl.textContent = timePlayed;
+    timeEl.textContent=timePlayed;
+    db.ref('players/'+uid).update({score:score,time:timePlayed,level:level});
     updateRank();
     updateLeaderboard();
-    const users = loadUsers();
-    users[u].score = score;
-    users[u].time = timePlayed;
-    users[u].level = level;
-    saveUsers(users);
-    // Firebase multiplayer
-    db.ref('players/'+u).set({username:u,score:score,time:timePlayed,level:level});
   },1000);
 }
 
@@ -142,48 +136,49 @@ function gameLoop(){
   // Gravity
   player.vy+=0.5;
   player.y+=player.vy;
-  if(player.y>250){player.y=250;player.vy=0;player.onGround=true;}
-  // Draw player
+  if(player.y>250){player.y=250; player.vy=0; player.onGround=true;}
+  // Desenează player
   ctx.fillStyle='red';
   ctx.fillRect(player.x,player.y,player.width,player.height);
-  // Obstacles
+  // Obstacole
   if(Math.random()<0.02){obstacles.push({x:canvas.width,y:250,width:30,height:30});}
   for(let i=0;i<obstacles.length;i++){
-    obstacles[i].x -= 5+level;
+    obstacles[i].x-=5+level;
     ctx.fillStyle='black';
     ctx.fillRect(obstacles[i].x,obstacles[i].y,obstacles[i].width,obstacles[i].height);
-    if(collide(player,obstacles[i])){score=0;obstacles=[];player.y=250;level=1;}
-    if(obstacles[i].x+obstacles[i].width<0){obstacles.splice(i,1); i--; score++; scoreEl.textContent=score;}
+    if(collide(player,obstacles[i])){score=0; obstacles=[]; player.y=250; level=1;}
+    if(obstacles[i].x+obstacles[i].width<0){obstacles.splice(i,1); i--; score+=1; scoreEl.textContent=score;}
   }
   level = Math.floor(score/20)+1;
-  levelEl.textContent = level;
+  levelEl.textContent=level;
 }
 
 function collide(a,b){
   return a.x<a.x+b.width && a.x+a.width>b.x && a.y<a.y+b.height && a.y+a.height>b.y;
 }
 
-// Ranguri
+// 🔹 Ranguri
 function updateRank(){
   if(score<20) rank='Novice';
   else if(score<50) rank='Intermediate';
   else if(score<100) rank='Pro';
   else rank='Master';
-  rankEl.textContent = rank;
+  rankEl.textContent=rank;
 }
 
-// Leaderboard
+// 🔹 Leaderboard
 function updateLeaderboard(){
   db.ref('players').orderByChild('score').limitToLast(5).once('value',snap=>{
     lbList.innerHTML='';
     snap.forEach(child=>{
-      const p = child.val();
-      const li = document.createElement('li');
+      let p = child.val();
+      let li = document.createElement('li');
       li.textContent = `${p.username} - Scor: ${p.score} Timp: ${p.time}s Nivel: ${p.level}`;
       lbList.prepend(li);
     });
   });
 }
 </script>
+
 </body>
 </html>
