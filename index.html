@@ -3,29 +3,95 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Miner Payout</title>
+<title>Mini Bitcoin Miner</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: linear-gradient(120deg, #0a0a0a, #222);
+        color: #fff;
+        text-align: center;
+        padding: 30px;
+    }
+    h1 { font-size: 2em; margin-bottom: 10px; }
+    #coins { font-size: 2em; margin: 20px 0; }
+    button {
+        font-size: 1.2em;
+        padding: 15px 30px;
+        background: gold;
+        color: #000;
+        border: none;
+        border-radius: 10px;
+        margin: 10px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+    button:hover { transform: scale(1.1); }
+    input { font-size: 1em; padding: 10px; margin: 5px; width: 80%; border-radius: 5px; }
+</style>
 </head>
 <body>
-<h1>Retrage bani pe PayPal</h1>
+
+<h1>Mini Bitcoin Miner</h1>
+<p>Apasă “Minează” sau așteaptă mining automat!</p>
+
+<div id="coins">0.000000 BTC</div>
+<button onclick="mineCoin()">Minează acum</button>
+
+<h2>Retragere pe PayPal</h2>
 <input type="email" id="email" placeholder="Email PayPal" />
 <input type="number" id="amount" placeholder="Amount USD" />
 <button onclick="withdraw()">Retragere</button>
 <pre id="result"></pre>
 
 <script>
+let coins = 0;
+
+// Mining manual
+function mineCoin() {
+    coins += 0.0001;
+    updateDisplay();
+}
+
+// Mining automat
+setInterval(() => {
+    coins += 0.00001;
+    updateDisplay();
+}, 1000);
+
+function updateDisplay() {
+    document.getElementById('coins').innerText = coins.toFixed(6) + " BTC";
+}
+
+// Withdraw via PayPal backend
 async function withdraw() {
     const email = document.getElementById('email').value;
     const amount = parseFloat(document.getElementById('amount').value);
 
-    const res = await fetch('https://YOUR_SERVER_DOMAIN/payout', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, amount })
-    });
+    if(amount > coins * 1000) { // conversie BTC virtual → USD
+        alert("Nu ai suficiente monede pentru această sumă!");
+        return;
+    }
 
-    const data = await res.json();
-    document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+    try {
+        const res = await fetch('https://YOUR_SERVER_DOMAIN/payout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ email, amount })
+        });
+        const data = await res.json();
+        document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+
+        if(data.batch_header && data.batch_header.batch_status === "SUCCESS") {
+            coins -= amount / 1000; // scade soldul după retragere
+            updateDisplay();
+        }
+
+    } catch(e) {
+        console.error(e);
+        alert("Eroare la retragere.");
+    }
 }
 </script>
+
 </body>
 </html>
