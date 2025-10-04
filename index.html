@@ -15,7 +15,7 @@ button:hover{background:#0059c9}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px}
 img,video{max-width:100%;max-height:100px;border-radius:6px;object-fit:cover}
 .card{background:#fff;padding:6px;border-radius:6px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
-.card button{margin:2px;font-size:11px;padding:4px 6px}
+.card button, .card select{margin:2px;font-size:11px;padding:4px 6px}
 .stats{margin-top:10px;font-size:14px;color:#333;text-align:center}
 .folderBar{margin:10px 0;padding:6px;background:#e9f0fb;border-radius:6px}
 </style>
@@ -137,12 +137,28 @@ function loadGallery(){
     } else if(f.type.startsWith('video/')){
       const v = document.createElement('video'); v.src=f.data; v.controls=true; card.appendChild(v);
     }
+    // butoane
     const dl = document.createElement('button'); dl.textContent="Descărcare";
     dl.onclick=()=>downloadFile(f);
     const del = document.createElement('button'); del.textContent="Ștergere";
     del.onclick=()=>deleteFile(i);
+
+    // meniu mutare
+    const moveSel=document.createElement("select");
+    Object.keys(users[currentUser].folders).forEach(folder=>{
+      const opt=document.createElement("option");
+      opt.value=folder; opt.text=folder;
+      if(folder===currentFolder) opt.disabled=true; // nu are sens în același folder
+      moveSel.appendChild(opt);
+    });
+    moveSel.onchange=()=>moveFile(i,moveSel.value);
+
     card.appendChild(document.createElement('br'));
-    card.appendChild(dl); card.appendChild(del);
+    card.appendChild(dl); 
+    card.appendChild(del); 
+    card.appendChild(document.createElement('br'));
+    card.appendChild(moveSel);
+
     gal.appendChild(card);
   });
 }
@@ -181,7 +197,7 @@ document.getElementById("btnNewFolder").addEventListener("click",()=>{
 });
 
 // ------------------------
-// Extra
+// Funcții extra
 // ------------------------
 function updateStats(){
   if(!currentUser) return;
@@ -207,6 +223,16 @@ function downloadFile(f){
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+function moveFile(index,newFolder){
+  if(!currentUser) return;
+  const file=users[currentUser].folders[currentFolder][index];
+  users[currentUser].folders[newFolder].push(file);
+  users[currentUser].folders[currentFolder].splice(index,1);
+  saveUsers();
+  loadGallery();
+  updateStats();
 }
 
 // ------------------------
