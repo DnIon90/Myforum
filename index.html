@@ -1,159 +1,59 @@
-<!DOCTYPE html>
-<html lang="ro">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Ferma lui Ion - Animale și Tractor</title>
-<style>
-body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:20px;}
-h1,h2,h3{color:#2e7d32;margin:5px 0;}
-input,button,select{padding:6px;border-radius:5px;border:1px solid #ccc;font-size:14px;}
-button{background:#2e7d32;color:#fff;border:0;cursor:pointer;margin:2px;}
-button:hover{background:#1b5e20;}
-.muted{color:#666;font-size:13px;}
-#plots{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
-.plot{width:100px;height:100px;background:#a0522d;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;position:relative;font-weight:bold;transition:background 0.3s;}
-.plot.planted{background:#fdd835;}
-.plot.ready{background:#4caf50;}
-.plot img{width:80%;height:80%;}
-#animals{margin-top:10px;}
-.animal{display:inline-block;margin:5px;padding:5px;border:1px solid #666;border-radius:5px;}
-</style>
-</head>
-<body>
-<h1>🌾 Ferma lui Ion</h1>
+// server.js
+const express = require('express');
+const fetch = require('node-fetch');
+const app = express();
+app.use(express.json());
 
-<div>
-  <h2>Parcela ta de pământ</h2>
-  <div id="plots"></div>
-  <button id="tractor-btn">🚜 Folosește Tractor (colectează automat)</button>
-</div>
+const CLIENT_ID = "AICI_CLIENT_ID";
+const SECRET = "AICI_SECRET";
 
-<h2>Resurse</h2>
-<div>🌾 Grâu: <span id="grain-count">0</span></div>
-<div>🥕 Legume: <span id="veg-count">0</span></div>
-<div>🍎 Fructe: <span id="fruit-count">0</span></div>
-<div>💰 Monede: <span id="coins-count">0</span></div>
-
-<h2>Animale</h2>
-<div id="animals"></div>
-<button id="buy-chicken">Cumpără Găină 🐓 (10 monede)</button>
-<button id="buy-cow">Cumpără Capră 🐐 (20 monede)</button>
-
-<script>
-let plots = Array(18).fill().map(()=>({type:null,plantedAt:null,ready:false}));
-let resources = {grain:0,veg:0,fruit:0,coins:50};
-let animals = [];
-
-const plantTimes = {Grâu:10,Legume:15,Fructe:20};
-const plotsDiv = document.getElementById('plots');
-const grainCount = document.getElementById('grain-count');
-const vegCount = document.getElementById('veg-count');
-const fruitCount = document.getElementById('fruit-count');
-const coinsCount = document.getElementById('coins-count');
-const animalsDiv = document.getElementById('animals');
-
-function renderFarm(){
-  plotsDiv.innerHTML='';
-  plots.forEach((p,i)=>{
-    const div = document.createElement('div');
-    div.className='plot';
-    if(p.type && !p.ready) div.classList.add('planted');
-    if(p.ready) div.classList.add('ready');
-    if(p.type) div.innerHTML = `<img src="${getPlantImage(p.type)}" alt="${p.type}">`;
-    div.addEventListener('click',()=>interactPlot(i));
-    plotsDiv.appendChild(div);
-  });
+// 1. Obține token de acces
+async function getAccessToken() {
+    const res = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Basic ' + Buffer.from(CLIENT_ID + ':' + SECRET).toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+    });
+    const data = await res.json();
+    return data.access_token;
 }
 
-function getPlantImage(type){
-  if(type==='Grâu') return 'https://i.imgur.com/xA4H0J7.png';
-  if(type==='Legume') return 'https://i.imgur.com/oaN4R2b.png';
-  if(type==='Fructe') return 'https://i.imgur.com/W9f8e6g.png';
-  return '';
-}
+// 2. Endpoint de payout
+app.post('/payout', async (req, res) => {
+    const { email, amount } = req.body;
 
-function interactPlot(i){
-  const p = plots[i];
-  if(p.ready){
-    if(p.type==='Grâu') resources.grain+=1;
-    if(p.type==='Legume') resources.veg+=1;
-    if(p.type==='Fructe') resources.fruit+=1;
-    p.type=null; p.plantedAt=null; p.ready=false;
-    updateUI();
-    renderFarm();
-  } else if(!p.type){
-    const choice=prompt('Ce vrei să plantezi? Grâu / Legume / Fructe','Grâu');
-    if(choice && plantTimes[choice]){
-      p.type=choice;
-      p.plantedAt=Date.now();
-      p.ready=false;
-      renderFarm();
-    }
-  }
-}
+    if (!email || !amount) return res.status(400).json({error: "Email și amount necesare"});
 
-function updatePlots(){
-  plots.forEach(p=>{
-    if(p.type && !p.ready){
-      const elapsed = Math.floor((Date.now()-p.plantedAt)/1000);
-      if(elapsed>=plantTimes[p.type]) p.ready=true;
-    }
-  });
-  renderFarm();
-  updateUI();
-}
+    const token = await getAccessToken();
 
-function updateUI(){
-  grainCount.textContent = resources.grain;
-  vegCount.textContent = resources.veg;
-  fruitCount.textContent = resources.fruit;
-  coinsCount.textContent = resources.coins;
-  animalsDiv.innerHTML = '';
-  animals.forEach(a=>{
-    const div = document.createElement('div');
-    div.className='animal';
-    div.textContent=`${a.type} (${a.resources})`;
-    animalsDiv.appendChild(div);
-  });
-}
+    const payoutBody = {
+        sender_batch_header: {
+            sender_batch_id: `batch_${Date.now()}`,
+            email_subject: "Payout MiniMiner"
+        },
+        items: [{
+            recipient_type: "EMAIL",
+            amount: { value: amount.toFixed(2), currency: "USD" },
+            receiver: email,
+            note: "Payout MiniMiner",
+            sender_item_id: `item_${Date.now()}`
+        }]
+    };
 
-// Tractor colectează tot automat
-document.getElementById('tractor-btn').addEventListener('click',()=>{
-  plots.forEach(p=>{
-    if(p.ready){
-      if(p.type==='Grâu') resources.grain+=1;
-      if(p.type==='Legume') resources.veg+=1;
-      if(p.type==='Fructe') resources.fruit+=1;
-      p.type=null; p.plantedAt=null; p.ready=false;
-    }
-  });
-  updateUI();
-  renderFarm();
+    const payoutRes = await fetch('https://api-m.sandbox.paypal.com/v1/payments/payouts', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payoutBody)
+    });
+
+    const data = await payoutRes.json();
+    res.json(data);
 });
 
-// Cumpărare animale
-document.getElementById('buy-chicken').addEventListener('click',()=>{
-  if(resources.coins>=10){animals.push({type:'Găină',resources:0}); resources.coins-=10; updateUI();}
-});
-document.getElementById('buy-cow').addEventListener('click',()=>{
-  if(resources.coins>=20){animals.push({type:'Capră',resources:0}); resources.coins-=20; updateUI();}
-});
-
-// Animalele produc resurse automat
-setInterval(()=>{
-  animals.forEach(a=>{
-    a.resources += 1; // fiecare animal produce 1 unitate
-    if(a.type==='Găină') resources.eggs = (resources.eggs||0)+1;
-    if(a.type==='Capră') resources.milk = (resources.milk||0)+1;
-  });
-  updateUI();
-},5000);
-
-// Actualizare ferme
-setInterval(updatePlots,1000);
-renderFarm();
-updateUI();
-</script>
-</body>
-</html>
+app.listen(3000, () => console.log("Server running on port 3000"));
