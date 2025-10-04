@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Bitcoin Miner Animat</title>
+<title>Mini Farm & Tank Miner</title>
 <style>
 body {
     margin:0;
@@ -11,7 +11,6 @@ body {
     font-family: Arial, sans-serif;
     background: linear-gradient(120deg, #111, #333);
     color: #fff;
-    overflow-x: hidden;
     text-align: center;
 }
 h1 { margin: 20px 0; }
@@ -31,9 +30,13 @@ input { width: 80%; }
 </head>
 <body>
 
-<h1>Mini Bitcoin Miner Animat</h1>
+<h1>Mini Farm & Tank Miner</h1>
 <div id="coins">0.000000 BTC</div>
 <canvas id="canvas" width="350" height="400"></canvas>
+
+<h2>Upgrade</h2>
+<button onclick="buyTank()">Cumpără Tanc (+0.0005 BTC/sec)</button>
+<button onclick="buyFarm()">Cumpără Fermă (+0.0002 BTC/sec)</button>
 
 <h2>Retragere pe PayPal</h2>
 <input type="email" id="email" placeholder="Email PayPal" />
@@ -46,23 +49,27 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 let coins = 0;
+let tanks = 0;
+let farms = 0;
+
 const fallingCoins = [];
 
-// Creează monede noi aleator
+// Spawnează monede aleator
 function spawnCoin() {
     fallingCoins.push({
         x: Math.random() * canvas.width,
         y: 0,
-        radius: 10 + Math.random() * 10,
+        radius: 10 + Math.random() * 5,
         speed: 1 + Math.random()*2
     });
 }
 
-// Update poziții și desen
+// Update canvas
 function update() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    for(let i = fallingCoins.length-1; i>=0; i--) {
+    // Desenează monede căzătoare
+    for(let i=fallingCoins.length-1; i>=0; i--){
         const c = fallingCoins[i];
         c.y += c.speed;
         ctx.beginPath();
@@ -72,7 +79,6 @@ function update() {
         ctx.strokeStyle = '#fff';
         ctx.stroke();
 
-        // Dacă a ajuns jos, colectează automat
         if(c.y > canvas.height){
             coins += 0.0001;
             fallingCoins.splice(i,1);
@@ -80,10 +86,20 @@ function update() {
         }
     }
 
+    // Desenează tancuri și ferme
+    for(let i=0;i<tanks;i++){
+        ctx.fillStyle='red';
+        ctx.fillRect(10+i*30,canvas.height-30,20,20);
+    }
+    for(let i=0;i<farms;i++){
+        ctx.fillStyle='green';
+        ctx.fillRect(10+i*30,canvas.height-60,20,20);
+    }
+
     requestAnimationFrame(update);
 }
 
-// Colectează monedă la click
+// Click pentru colectare manuală
 canvas.addEventListener('click', function(e){
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -94,7 +110,7 @@ canvas.addEventListener('click', function(e){
         const dx = mouseX - c.x;
         const dy = mouseY - c.y;
         if(Math.sqrt(dx*dx+dy*dy) < c.radius){
-            coins += 0.001; // colectare mai mare la click
+            coins += 0.001;
             fallingCoins.splice(i,1);
             updateDisplay();
         }
@@ -105,16 +121,37 @@ function updateDisplay() {
     document.getElementById('coins').innerText = coins.toFixed(6) + " BTC";
 }
 
-// Spawnează monede la interval
+// Spawn monede la interval
 setInterval(spawnCoin, 800);
 
-// Mining automat (fără click)
+// Mining automat + tancuri/ferme
 setInterval(()=>{
-    coins += 0.00001;
+    coins += 0.00001 + tanks*0.0005 + farms*0.0002;
     updateDisplay();
 }, 1000);
 
-update(); // start animația
+update();
+
+// Upgrade
+function buyTank(){
+    if(coins >= 0.01){ // preț tanc
+        coins -= 0.01;
+        tanks++;
+        updateDisplay();
+    } else {
+        alert("Nu ai suficiente monede pentru tanc!");
+    }
+}
+
+function buyFarm(){
+    if(coins >= 0.005){ // preț fermă
+        coins -= 0.005;
+        farms++;
+        updateDisplay();
+    } else {
+        alert("Nu ai suficiente monede pentru fermă!");
+    }
+}
 
 // Withdraw via PayPal backend
 async function withdraw() {
