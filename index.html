@@ -1,136 +1,349 @@
 <!doctype html>
 <html lang="ro">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MyForum - GitHub Pages Forum</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 18px; background:#f9f9f9; color:#333; }
-    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-    h1 { margin:0; font-size:1.8rem; color:#007bff; }
-    .thread { background:#fff; border:1px solid #ddd; padding:15px; border-radius:8px; margin-bottom:15px; box-shadow:0 1px 2px rgba(0,0,0,0.05);}
-    .meta { font-size:0.9rem; color:#666; margin-bottom:8px; }
-    .content { white-space:pre-wrap; }
-    .controls { margin-top:10px; display:flex; gap:10px; }
-    a.button { text-decoration:none; border:1px solid #007bff; padding:6px 12px; border-radius:6px; color:#007bff; font-weight:bold; transition:0.2s; }
-    a.button:hover { background:#007bff; color:#fff; }
-    a.small { font-size:0.9rem; color:#444; }
-    #new-title { width:250px; padding:6px; border:1px solid #ccc; border-radius:5px; }
-    footer { margin-top:30px; color:#666; font-size:0.9rem; text-align:center; }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Joc cu logare — Prinde pătratul</title>
+<style>
+  :root{--blue:#0b78d1;--bg:#f6f8fb}
+  body{font-family:system-ui,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;display:flex;justify-content:center}
+  .card{width:980px;max-width:100%;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(10,20,40,.08);padding:18px}
+  h1{margin:0 0 8px;color:var(--blue)}
+  .row{display:flex;gap:16px;align-items:center}
+  .col{flex:1}
+  form{display:flex;flex-direction:column;gap:8px}
+  input,button,select{padding:8px 10px;border-radius:6px;border:1px solid #d7dbe6;font-size:14px}
+  button{cursor:pointer;background:var(--blue);color:#fff;border:0}
+  .muted{color:#666;font-size:13px}
+  #game-area{display:flex;gap:18px;margin-top:14px}
+  #canvas-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+  canvas{background:#081022;border-radius:6px}
+  #hud{display:flex;gap:12px;align-items:center}
+  .chip{background:#f1f5fb;padding:8px 10px;border-radius:999px;border:1px solid #e1e8f7}
+  .controls{display:flex;gap:8px}
+  .small{font-size:13px;color:#444;text-decoration:none}
+  .danger{background:#ff6b6b}
+  footer{margin-top:12px;color:#888;font-size:13px;text-align:center}
+  @media (max-width:760px){.row{flex-direction:column}}
+</style>
 </head>
 <body>
-  <header>
-    <h1>💬 MyForum</h1>
-    <div>
-      <input id="new-title" placeholder="Titlu nou thread" />
-      <a id="create-link" class="button" href="#" target="_blank">Creează thread</a>
+  <div class="card">
+    <h1>Prinde pătratul 🎯</h1>
+    <div class="row">
+      <div class="col" id="auth-col">
+        <!-- Auth forms go here -->
+        <div id="not-logged">
+          <p class="muted">Autentificare rapidă (ex: creezi cont local — se stochează doar în browserul tău).</p>
+          <form id="login-form">
+            <input id="login-username" placeholder="Username" required />
+            <input id="login-password" placeholder="Parolă" type="password" required />
+            <div style="display:flex;gap:8px">
+              <button type="submit">Loghează</button>
+              <button type="button" id="show-register" style="background:#2b8a3e">Înregistrează</button>
+            </div>
+            <p class="muted" style="margin:6px 0 0">Fără internet — totul rulează local în browser.</p>
+          </form>
+
+          <form id="register-form" style="display:none; margin-top:8px">
+            <input id="reg-username" placeholder="Alege un username" required />
+            <input id="reg-password" placeholder="Parolă" type="password" required />
+            <div style="display:flex;gap:8px">
+              <button id="do-register" type="button">Creează cont</button>
+              <button id="hide-register" type="button" style="background:#888">Anulează</button>
+            </div>
+            <div id="reg-msg" class="muted" style="margin-top:6px"></div>
+          </form>
+        </div>
+
+        <div id="logged" style="display:none">
+          <p class="muted">Te-ai logat ca <strong id="me-username"></strong></p>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button id="logout">Deconectează</button>
+            <button id="delete-account" class="danger">Șterge cont</button>
+          </div>
+          <div style="margin-top:10px" id="user-stats">
+            <div class="muted">Highscore: <strong id="user-highscore">0</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col" id="game-col">
+        <div id="game-area">
+          <div id="canvas-wrap">
+            <div id="hud">
+              <div class="chip">Scor: <strong id="score">0</strong></div>
+              <div class="chip">Timp: <strong id="timer">30</strong>s</div>
+              <div class="controls">
+                <button id="start-btn">Start</button>
+                <button id="reset-btn" style="background:#6c757d">Reset</button>
+              </div>
+            </div>
+            <canvas id="game" width="640" height="360"></canvas>
+            <div class="muted">Click pe pătratul galben ca să aduni puncte. Jucătorii sunt locali — scorurile rămân în browser.</div>
+          </div>
+        </div>
+      </div>
     </div>
-  </header>
 
-  <section id="list">
-    <p>Se încarcă thread-urile...</p>
-  </section>
-
-  <section id="thread-view"></section>
-
-  <footer>
-    <p>Forumul rulează pe GitHub Pages, folosind fișiere Markdown din folderul <code>threads/</code>.</p>
-  </footer>
+    <footer>
+      Joc demo — stocare simplă cu <code>localStorage</code>. Parolele sunt salvatate ca SHA-256 (WebCrypto).
+    </footer>
+  </div>
 
 <script>
-/* CONFIG — schimbă USERNAME cu userul tău GitHub */
-const OWNER = 'USERNAME';   // ← aici pui numele tău GitHub
-const REPO  = 'myforum';
-const BRANCH = 'main';
-const THREAD_FOLDER = 'threads';
-
-const apiListUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${THREAD_FOLDER}?ref=${BRANCH}`;
-const githubEditBase = `https://github.com/${OWNER}/${REPO}/edit/${BRANCH}/${THREAD_FOLDER}/`;
-const githubNewFile = `https://github.com/${OWNER}/${REPO}/new/${BRANCH}?filename=${THREAD_FOLDER}/`;
-
-function mdToHtml(md) {
-  let html = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-  html = html.replace(/\n{2,}/g, '</p><p>');
-  html = '<p>' + html + '</p>';
-  html = html.replace(/\n/g, '<br/>');
-  return html;
+/* ===========================
+   Utilitare: hashing (SHA-256)
+   =========================== */
+async function sha256Hex(str){
+  const utf8 = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', utf8);
+  const arr = Array.from(new Uint8Array(hash));
+  return arr.map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-async function loadList() {
-  const listEl = document.getElementById('list');
-  listEl.innerHTML = '<p>Se încarcă...</p>';
-  try {
-    const resp = await fetch(apiListUrl);
-    if (!resp.ok) throw new Error(resp.status);
-    const files = await resp.json();
-    if (!Array.isArray(files) || files.length === 0) {
-      listEl.innerHTML = '<p>Nu există thread-uri. Creează unul!</p>';
-      return;
-    }
-    files.sort((a,b)=>a.name.localeCompare(b.name));
-    listEl.innerHTML = files.map(f => {
-      const title = decodeURIComponent(f.name).replace(/\.md$/i,'').replace(/-/g,' ');
-      return `<div class="thread">
-        <div class="meta"><strong>${title}</strong></div>
-        <div class="controls">
-          <a class="button" href="#" data-file="${encodeURIComponent(f.path)}" onclick="openThread(event,this)">Deschide</a>
-          <a class="small" href="${githubEditBase + encodeURIComponent(f.name)}" target="_blank">✏️ Edit</a>
-        </div>
-      </div>`;
-    }).join('');
-  } catch (err) {
-    listEl.innerHTML = `<p>Eroare: ${err.message}</p>`;
-  }
+/* ===========================
+   Stocare utilizatori (localStorage)
+   Structură: users = { username: { passHash: "...", highscore: 12 } }
+   =========================== */
+const STORAGE_KEY = 'pf_users_v1';
+function loadUsers(){
+  try{
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  }catch(e){ return {}; }
 }
+function saveUsers(u){ localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); }
 
-async function openThread(e, el) {
-  e.preventDefault();
-  const path = decodeURIComponent(el.getAttribute('data-file'));
-  const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
-  const view = document.getElementById('thread-view');
-  view.innerHTML = '<p>Se încarcă...</p>';
-  try {
-    const r = await fetch(rawUrl);
-    const md = await r.text();
-    const html = mdToHtml(md);
-    const filename = path.split('/').pop();
-    view.innerHTML = `<div class="thread">
-        <div class="content">${html}</div>
-        <div class="controls">
-          <a class="button" href="${githubEditBase + encodeURIComponent(filename)}" target="_blank">✏️ Edit pe GitHub</a>
-          <a class="small" href="#" onclick="closeThread(event)">Închide</a>
-        </div>
-      </div>`;
-  } catch (err) {
-    view.innerHTML = `<p>Eroare la încărcare: ${err.message}</p>`;
-  }
-}
+/* ===========================
+   Elemente UI
+   =========================== */
+const loginForm = document.getElementById('login-form');
+const loginUserInput = document.getElementById('login-username');
+const loginPassInput = document.getElementById('login-password');
+const showRegBtn = document.getElementById('show-register');
+const registerForm = document.getElementById('register-form');
+const regUserInput = document.getElementById('reg-username');
+const regPassInput = document.getElementById('reg-password');
+const doRegBtn = document.getElementById('do-register');
+const hideRegBtn = document.getElementById('hide-register');
+const regMsg = document.getElementById('reg-msg');
 
-function closeThread(e) {
-  e.preventDefault();
-  document.getElementById('thread-view').innerHTML = '';
-}
+const notLogged = document.getElementById('not-logged');
+const logged = document.getElementById('logged');
+const meUsernameEl = document.getElementById('me-username');
+const logoutBtn = document.getElementById('logout');
+const deleteBtn = document.getElementById('delete-account');
+const userHighscoreEl = document.getElementById('user-highscore');
 
-document.getElementById('new-title').addEventListener('input', function() {
-  const raw = this.value.trim();
-  if (!raw) {
-    document.getElementById('create-link').href = '#';
-    return;
-  }
-  const slug = raw.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
-  const template = encodeURIComponent(`# ${raw}\n\nScrie primul mesaj aici...`);
-  const newUrl = `${githubNewFile}${slug}.md&value=${template}`;
-  document.getElementById('create-link').href = newUrl;
+let currentUser = null;
+
+/* ===========================
+   Autentificare / Înregistrare
+   =========================== */
+showRegBtn.addEventListener('click', ()=>{ registerForm.style.display='block'; showRegBtn.disabled=true; });
+hideRegBtn.addEventListener('click', ()=>{ registerForm.style.display='none'; showRegBtn.disabled=false; });
+
+doRegBtn.addEventListener('click', async ()=>{
+  const u = regUserInput.value.trim();
+  const p = regPassInput.value;
+  if(!u || !p){ regMsg.textContent = 'Completează username și parolă.'; return; }
+  const users = loadUsers();
+  if(users[u]){ regMsg.textContent = 'Username deja folosit.'; return; }
+  regMsg.textContent = 'Se creează cont...';
+  const hash = await sha256Hex(p);
+  users[u] = { passHash: hash, highscore: 0 };
+  saveUsers(users);
+  regMsg.textContent = 'Cont creat! Poți să te loghezi.';
+  regUserInput.value=''; regPassInput.value='';
+  registerForm.style.display='none'; showRegBtn.disabled=false;
 });
 
-loadList();
+loginForm.addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const u = loginUserInput.value.trim();
+  const p = loginPassInput.value;
+  if(!u || !p) return alert('Completează ambele câmpuri.');
+  const users = loadUsers();
+  if(!users[u]) return alert('Utilizator inexistent. Creează cont.');
+  const hash = await sha256Hex(p);
+  if(hash !== users[u].passHash) return alert('Parolă greșită.');
+  // success
+  currentUser = u;
+  onLogin();
+  loginUserInput.value=''; loginPassInput.value='';
+});
+
+logoutBtn.addEventListener('click', ()=>{ currentUser=null; onLogout(); });
+
+deleteBtn.addEventListener('click', ()=>{
+  if(!currentUser) return;
+  if(!confirm('Ștergi contul local (nu se poate recupera)?')) return;
+  const users = loadUsers();
+  delete users[currentUser];
+  saveUsers(users);
+  currentUser = null;
+  onLogout();
+  alert('Cont șters.');
+});
+
+/* ===========================
+   UI update on login/logout
+   =========================== */
+function onLogin(){
+  notLogged.style.display='none';
+  logged.style.display='block';
+  meUsernameEl.textContent = currentUser;
+  const users = loadUsers();
+  userHighscoreEl.textContent = users[currentUser]?.highscore || 0;
+}
+function onLogout(){
+  notLogged.style.display='block';
+  logged.style.display='none';
+  meUsernameEl.textContent = '';
+  userHighscoreEl.textContent = '0';
+}
+
+/* ===========================
+   Joc: "prinde pătratul"
+   - canvas 640x360
+   - target apare random, mută la un interval
+   - click pe target +1 punct
+   - timer (30s)
+   - salvează highscore per utilizator
+   =========================== */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const startBtn = document.getElementById('start-btn');
+const resetBtn = document.getElementById('reset-btn');
+
+let score = 0;
+let timeLeft = 30;
+let gameInterval = null;
+let moveInterval = 900; // ms between moves
+let target = { x:100, y:100, size:48 };
+let running = false;
+let moveTimer = null;
+
+function draw(){
+  // clear
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // draw background grid
+  ctx.fillStyle = '#07101a';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // draw target (square)
+  ctx.fillStyle = '#f6c94d';
+  ctx.fillRect(target.x, target.y, target.size, target.size);
+  // small glow
+  ctx.strokeStyle = 'rgba(246,201,77,0.2)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(target.x-2, target.y-2, target.size+4, target.size+4);
+}
+
+function randomPos(){
+  const padding = 10;
+  const maxX = canvas.width - target.size - padding;
+  const maxY = canvas.height - target.size - padding;
+  target.x = Math.floor(Math.random() * (maxX - padding + 1)) + padding;
+  target.y = Math.floor(Math.random() * (maxY - padding + 1)) + padding;
+}
+
+canvas.addEventListener('click', (e)=>{
+  if(!running) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  if(mx >= target.x && mx <= target.x + target.size && my >= target.y && my <= target.y + target.size){
+    score += 1;
+    scoreEl.textContent = score;
+    // speed up slightly
+    moveInterval = Math.max(220, moveInterval - 20);
+    // immediate move for feedback
+    randomPos();
+    draw();
+  }
+});
+
+function tick(){
+  timeLeft -= 1;
+  timerEl.textContent = timeLeft;
+  if(timeLeft <= 0){
+    endGame();
+  }
+}
+
+function startGame(){
+  if(!currentUser){ alert('Trebuie să fii logat ca să începi.'); return; }
+  if(running) return;
+  running = true;
+  score = 0; timeLeft = 30; moveInterval = 900;
+  scoreEl.textContent = score;
+  timerEl.textContent = timeLeft;
+  randomPos();
+  draw();
+  // move target periodically
+  moveTimer = setInterval(()=>{
+    randomPos();
+    draw();
+  }, moveInterval);
+  // countdown
+  gameInterval = setInterval(tick, 1000);
+  // also reduce move interval gradually to make harder — use setInterval updater to adjust
+  // replace moveTimer with dynamic timing using recursive timeout so we can vary interval:
+  if(moveTimer){ clearInterval(moveTimer); moveTimer = null; }
+  (function moveLoop(){
+    if(!running) return;
+    randomPos(); draw();
+    setTimeout(moveLoop, moveInterval);
+  })();
+}
+
+function endGame(){
+  running = false;
+  clearInterval(gameInterval); gameInterval = null;
+  // stop movement by setting moveInterval large and it will stop naturally because running=false
+  saveScoreForUser(score);
+  alert('Timpul s-a terminat! Scor: ' + score);
+}
+
+function resetGame(){
+  running = false;
+  clearInterval(gameInterval); gameInterval = null;
+  score = 0; timeLeft = 30; scoreEl.textContent = '0'; timerEl.textContent = '30';
+  randomPos(); draw();
+}
+
+/* Save highscore */
+function saveScoreForUser(s){
+  if(!currentUser) return;
+  const users = loadUsers();
+  const u = users[currentUser];
+  if(!u) return;
+  if(s > (u.highscore || 0)){
+    u.highscore = s;
+    saveUsers(users);
+    userHighscoreEl.textContent = s;
+    alert('Record! Highscore actualizat la ' + s);
+  }
+}
+
+/* Buttons */
+startBtn.addEventListener('click', startGame);
+resetBtn.addEventListener('click', resetGame);
+
+/* Init */
+(function init(){
+  // draw initial screen
+  randomPos(); draw();
+  const stored = loadUsers();
+  // try to auto-login last user (optional)
+  const last = localStorage.getItem('pf_last_user');
+  if(last && stored[last]){ currentUser = last; onLogin(); }
+  // update last user when login
+  const origOnLogin = onLogin;
+  onLogin = function(){ localStorage.setItem('pf_last_user', currentUser); origOnLogin(); };
+})();
 </script>
 </body>
 </html>
