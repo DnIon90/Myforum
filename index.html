@@ -1,153 +1,273 @@
-// server.js
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
-const Stripe = require('stripe');
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Demo Miner (simulat) — Login & Withdraw (simulat)</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;background:#0b1220;color:#e6eef8;margin:0;padding:20px}
+  .box{max-width:420px;margin:12px auto;background:#0f1724;padding:18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+  h1{margin:0 0 12px;font-size:20px;text-align:center}
+  input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #243241;background:#071025;color:#fff}
+  button{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:none;background:#f4b400;color:#000;font-weight:700;cursor:pointer}
+  small{color:#9fb0c6}
+  #canvas{width:100%;height:180px;background:linear-gradient(180deg,#071226,#0a1b2a);border-radius:8px;display:block;margin:12px 0}
+  .row{display:flex;gap:8px}
+  .half{flex:1}
+  .notice{background:#11202b;padding:8px;border-radius:6px;color:#a8c2d6;font-size:13px;margin-top:10px}
+  pre{white-space:pre-wrap;color:#a8c2d6;background:#071722;padding:8px;border-radius:6px}
+</style>
+</head>
+<body>
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY); // PLATFORM secret key
-const app = express();
-app.use(cors());
-app.use(express.json());
+<div class="box" id="authBox">
+  <h1>Demo Miner (simulat)</h1>
+  <div id="forms">
+    <div id="registerSection">
+      <input id="regEmail" placeholder="Email (demo)" />
+      <input id="regPass" type="password" placeholder="Parolă" />
+      <button onclick="register()">Înregistrează (demo)</button>
+      <small>Parola este securizată cu SHA‑256 în browser (doar demo).</small>
+    </div>
 
-const JWT_SECRET = process.env.JWT_SECRET || "schimbă_asta";
+    <hr style="border:none;height:1px;background:#0b2636;margin:12px 0">
 
-// --- DB init (sqlite)
-let db;
-(async () => {
-  db = await open({ filename: './data.db', driver: sqlite3.Database });
-  await db.exec(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    password_hash TEXT,
-    stripe_account_id TEXT,
-    balance INTEGER DEFAULT 0  -- stocăm în "cents" de USD (ex: 150 = $1.50)
-  )`);
-})();
+    <div id="loginSection">
+      <input id="logEmail" placeholder="Email" />
+      <input id="logPass" type="password" placeholder="Parolă" />
+      <button onclick="login()">Autentificare (demo)</button>
+    </div>
+  </div>
 
-// --- helper: auth middleware
-function authMiddleware(req, res, next) {
-  const h = req.headers.authorization;
-  if (!h) return res.status(401).json({ error: 'Missing auth' });
-  const token = h.split(' ')[1];
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  <div class="notice">
+    <strong>Atenție:</strong> Acesta este un DEMO. Nu se minează Bitcoin real în browser și nu se trimit bani pe card Visa. Pentru plăți reale ai nevoie de un server și integrare cu Stripe/PayPal.
+  </div>
+</div>
+
+<div class="box" id="appBox" style="display:none">
+  <h1>Dashboard (demo)</h1>
+  <div>Logged in: <span id="meEmail"></span></div>
+  <div id="balance" style="font-size:18px;margin:8px 0">Balance: 0.000000 BTC</div>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="row">
+    <button class="half" onclick="manualMine()">Minează manual</button>
+    <button class="half" onclick="toggleAuto()"><span id="autoLabel">Pornește Auto</span></button>
+  </div>
+
+  <div style="margin-top:10px">
+    <input id="cardLast4" placeholder="Card Visa (ultimele 4 cifre) — demo" />
+    <input id="withdrawAmount" placeholder="Sumă USD (simulat)" />
+    <button onclick="withdraw()">Withdraw to Visa (simulat)</button>
+  </div>
+
+  <div class="notice" style="margin-top:12px">
+    Acțiune withdraw este doar simulare: se înregistrează cererea local și scade balanța demo. Nu se efectuează transferuri reale. Pentru transfer real folosește backend + Stripe Connect (pot să te ajut cu asta).
+  </div>
+
+  <pre id="log">Jurnal activități (demo)</pre>
+  <button style="margin-top:10px;background:#2b6cb0;color:#fff" onclick="logout()">Logout</button>
+</div>
+
+<script>
+// ---------- Utilities: SHA-256 (Web Crypto) ----------
+async function sha256hex(str) {
+  const enc = new TextEncoder();
+  const data = enc.encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(hash);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// --- register
-app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
-  if(!email || !password) return res.status(400).json({ error: 'Email + password required'});
-  const hash = await bcrypt.hash(password, 10);
-  try {
-    const result = await db.run('INSERT INTO users (email, password_hash) VALUES (?,?)', [email, hash]);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: 'Email already used' });
+// ---------- Simple local storage "user DB" (demo only) ----------
+function saveUserRecord(email, pwHash) {
+  const key = 'demo_user_' + email.toLowerCase();
+  const rec = { email: email.toLowerCase(), pwHash, balance_satoshi: 0 }; // balance in satoshi-like units (virtual)
+  localStorage.setItem(key, JSON.stringify(rec));
+}
+function getUserRecord(email) {
+  const key = 'demo_user_' + email.toLowerCase();
+  const raw = localStorage.getItem(key);
+  return raw ? JSON.parse(raw) : null;
+}
+function setUserRecord(email, rec) {
+  const key = 'demo_user_' + email.toLowerCase();
+  localStorage.setItem(key, JSON.stringify(rec));
+}
+
+// ---------- Auth ----------
+async function register() {
+  const email = document.getElementById('regEmail').value.trim();
+  const pass = document.getElementById('regPass').value;
+  if(!email || !pass) return alert('Completează email și parolă');
+  if(getUserRecord(email)) return alert('Email deja folosit (demo)');
+  const hash = await sha256hex(pass);
+  saveUserRecord(email, hash);
+  log(`Cont creat (demo): ${email}`);
+  alert('Cont creat (demo). Acum te poți loga.');
+}
+async function login() {
+  const email = document.getElementById('logEmail').value.trim();
+  const pass = document.getElementById('logPass').value;
+  if(!email || !pass) return alert('Completează email și parolă');
+  const rec = getUserRecord(email);
+  if(!rec) return alert('Cont inexistent (demo)');
+  const hash = await sha256hex(pass);
+  if(hash !== rec.pwHash) return alert('Parolă greșită (demo)');
+  // login success
+  sessionStorage.setItem('demo_logged_in', email.toLowerCase());
+  showApp();
+  log(`Autentificat: ${email}`);
+}
+function logout() {
+  sessionStorage.removeItem('demo_logged_in');
+  location.reload();
+}
+function currentUser() {
+  return sessionStorage.getItem('demo_logged_in');
+}
+
+// ---------- UI / Mining logic (simulat) ----------
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.clientWidth;
+canvas.height = 160;
+
+let falling = [];
+let autoOn = false;
+let autoInterval = null;
+
+function spawn() {
+  falling.push({ x: Math.random()*(canvas.width-30)+15, y: -10, r: 8+Math.random()*8, speed: 1+Math.random()*2 });
+}
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // background simple
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // draw falling coins
+  for(let i=falling.length-1;i>=0;i--){
+    const c = falling[i];
+    c.y += c.speed;
+    // coin
+    ctx.beginPath();
+    const g = ctx.createRadialGradient(c.x-3,c.y-3,1,c.x,c.y,c.r*1.2);
+    g.addColorStop(0,'#fff6d6'); g.addColorStop(1,'#b88600');
+    ctx.fillStyle = g;
+    ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.stroke();
+    if(c.y > canvas.height + 10) falling.splice(i,1);
+  }
+  requestAnimationFrame(draw);
+}
+canvas.addEventListener('click', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  for(let i=falling.length-1;i>=0;i--){
+    const c = falling[i];
+    const d = Math.hypot(mx - c.x, my - c.y);
+    if(d < c.r+6){
+      // collected by click -> bigger reward
+      reward(1000); // 1000 virtual satoshi
+      falling.splice(i,1);
+      log('Monedă colectată manual (+1000 units)');
+      return;
+    }
   }
 });
 
-// --- login
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  const user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
-  if(!user) return res.status(400).json({ error: 'Invalid credentials' });
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if(!ok) return res.status(400).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token });
-});
+// reward: add virtual satoshi-like units
+function reward(units) {
+  const email = currentUser();
+  if(!email) return;
+  const rec = getUserRecord(email);
+  rec.balance_satoshi = (rec.balance_satoshi || 0) + units;
+  setUserRecord(email, rec);
+  refreshBalance();
+}
 
-// --- create Stripe Connect account (Express onboarding link)
-app.post('/api/connect', authMiddleware, async (req, res) => {
-  // Create a connected account and return an account link so user completes onboarding
-  const user = await db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
-  if(!user) return res.status(404).json({ error: 'User not found' });
-
-  // If already has a stripe_account_id, create an account link for it
-  let accountId = user.stripe_account_id;
-  if(!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express', // express recommended for platforms
-      country: 'US', // adapt la țara ta / user
-      capabilities: { transfers: { requested: true } }
-    });
-    accountId = account.id;
-    await db.run('UPDATE users SET stripe_account_id = ? WHERE id = ?', [accountId, user.id]);
+// periodic auto collect (by reaching bottom)
+setInterval(()=>{
+  // spawn sometimes
+  if(Math.random() < 0.6) spawn();
+  // coins that reach bottom are auto-collected:
+  for(let i=falling.length-1;i>=0;i--){
+    if(falling[i].y > canvas.height - 6){
+      reward(100); // auto-collected smaller
+      falling.splice(i,1);
+    }
   }
+}, 700);
 
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: process.env.REFRESH_URL || 'https://your-frontend.example/refresh',
-    return_url: process.env.RETURN_URL || 'https://your-frontend.example/return',
-    type: 'account_onboarding',
-  });
-
-  res.json({ url: accountLink.url });
-});
-
-// --- endpoint pentru a verifica detalii user / balance
-app.get('/api/me', authMiddleware, async (req, res) => {
-  const user = await db.get('SELECT id, email, stripe_account_id, balance FROM users WHERE id = ?', [req.user.id]);
-  if(!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user });
-});
-
-// --- endpoint demo: adaugă bani în cont (doar pentru test) - în producție AI trebuie validare/flux)
-app.post('/api/admin/add-funds', async (req, res) => {
-  // simplu endpoint demo pentru a adăuga balance (do NOT expune în prod)
-  const { email, cents } = req.body; // cents = integer
-  await db.run('UPDATE users SET balance = balance + ? WHERE email = ?', [cents, email]);
-  res.json({ok:true});
-});
-
-/*
-  Withdraw flow:
-  - Platform must have funds (or create transfer to connected account).
-  - For Connect Express/Custom, you can create a Transfer with stripeAccount = connectedAccountId and method='instant'
-  - Alternatively create a Payout object; using transfers with method instant via Transfers API (see docs).
-  NOTE: availability, limits, eligibility apply. See Stripe docs.
-*/
-app.post('/api/withdraw', authMiddleware, async (req, res) => {
-  try {
-    const { amount_cents, currency = 'usd' } = req.body; // e.g. 500 = $5.00
-    if(!amount_cents || amount_cents <= 0) return res.status(400).json({ error: 'Invalid amount' });
-
-    const user = await db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
-    if(!user) return res.status(404).json({ error: 'User not found' });
-    if(!user.stripe_account_id) return res.status(400).json({ error: 'User has not completed Stripe onboarding' });
-
-    // Check balance
-    if(user.balance < amount_cents) return res.status(400).json({ error: 'Insufficient balance' });
-
-    // Create a transfer to the connected account using method=instant
-    // Note: transfers are created on platform and moved to connected account
-    // You must have available platform balance; this is a simplified example.
-    const transfer = await stripe.transfers.create({
-      amount: amount_cents,
-      currency,
-      method: 'instant', // request instant - availability depends on eligibilty
-    }, {
-      stripeAccount: user.stripe_account_id // perform transfer *to* connected account
-    });
-
-    // If successful, decrement user balance in DB
-    await db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount_cents, user.id]);
-
-    res.json({ ok: true, transfer });
-  } catch (err) {
-    console.error('withdraw err', err);
-    res.status(500).json({ error: err.message || 'withdraw failed' });
+// automatic mining that increases balance over time
+setInterval(()=>{
+  if(autoOn && currentUser()){
+    reward(250); // per tick when auto on
+    log('Auto mining tick +250 units');
   }
-});
+}, 2000);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Server running on', PORT));
+function manualMine(){ reward(500); log('Mining manual +500 units'); }
+function toggleAuto(){
+  autoOn = !autoOn;
+  document.getElementById('autoLabel').innerText = autoOn ? 'Oprește Auto' : 'Pornește Auto';
+  log('Auto mining ' + (autoOn ? 'pornit' : 'oprit'));
+}
+
+// ---------- Withdraw (simulat) ----------
+function withdraw(){
+  const email = currentUser();
+  if(!email) return alert('Loghează-te mai întâi.');
+  const amountUSD = parseFloat(document.getElementById('withdrawAmount').value);
+  const card4 = (document.getElementById('cardLast4').value || '').trim();
+  if(!amountUSD || amountUSD <= 0) return alert('Sumă invalidă');
+  if(!/^\d{4}$/.test(card4)) return alert('Introduce ultimele 4 cifre ale cardului (demo)');
+  // convert USD -> virtual units: define rate: 1 USD = 100000 units (demo)
+  const unitsNeeded = Math.round(amountUSD * 100000);
+  const rec = getUserRecord(email);
+  if(rec.balance_satoshi < unitsNeeded) return alert('Fonduri insuficiente (demo)');
+  // Simulate withdrawal: record a local "request", deduct balance
+  rec.balance_satoshi -= unitsNeeded;
+  setUserRecord(email, rec);
+  refreshBalance();
+  // save a local "withdrawal log"
+  const wlog = JSON.parse(localStorage.getItem('demo_withdraws')||'[]');
+  wlog.push({ email, amountUSD, card_last4: card4, timestamp: new Date().toISOString(), status: 'SIMULATED' });
+  localStorage.setItem('demo_withdraws', JSON.stringify(wlog));
+  log(`Cerere withdraw simulată: $${amountUSD.toFixed(2)} -> card ****${card4} (STATUS: SIMULATED)`);
+  alert('Withdraw simulată înregistrată (demo). Nu s-au trimis bani reali.');
+}
+
+// ---------- UI helpers ----------
+function refreshBalance(){
+  const email = currentUser();
+  if(!email) return;
+  const rec = getUserRecord(email);
+  // show as BTC-like: units -> BTC at 1e8 like satoshi
+  const btc = (rec.balance_satoshi || 0) / 100000000;
+  document.getElementById('balance').innerText = 'Balance: ' + btc.toFixed(8) + ' BTC (virtual demo)';
+}
+function showApp(){
+  const email = currentUser();
+  if(!email) return;
+  document.getElementById('authBox').style.display = 'none';
+  document.getElementById('appBox').style.display = 'block';
+  document.getElementById('meEmail').innerText = email;
+  refreshBalance();
+}
+function log(msg){
+  const p = document.getElementById('log');
+  p.innerText = `[${new Date().toLocaleTimeString()}] ` + msg + "\n" + p.innerText;
+}
+
+// on load: if session present show app
+if(currentUser()) showApp();
+draw();
+
+</script>
+</body>
+</html>
