@@ -1,180 +1,114 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ro">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Upload Poze & Video</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Galerie Poze & Video cu Login</title>
 <style>
-  body{font-family:Arial,Helvetica,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padding:18px}
-  .wrap{max-width:980px;margin:0 auto}
-  h1{margin:6px 0 14px;font-size:20px}
-  .drop{border:2px dashed #9fb6cc;background:#fff;padding:18px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:10px}
-  .drop.drag{background:#e8f3ff;border-color:#4b9cff}
-  input[type=file]{display:none}
-  .btn{background:#0077ff;color:#fff;padding:10px 14px;border-radius:8px;border:none;cursor:pointer}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
-  .card{background:#fff;padding:8px;border-radius:8px;display:flex;flex-direction:column;gap:6px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-  img,video{max-width:100%;border-radius:6px}
-  .prog{width:100%;height:8px;background:#eef3f8;border-radius:6px;overflow:hidden}
-  .bar{height:100%;width:0;background:#00c37a}
-  .small{font-size:13px;color:#567}
-  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  a.gallery{display:inline-block;margin-top:10px;color:#0077ff}
-  @media(max-width:420px){ .grid{grid-template-columns:repeat(2,1fr)} }
+body{font-family:Arial,sans-serif;background:#f2f6fb;color:#0b2236;margin:0;padding:18px}
+.wrap{max-width:900px;margin:0 auto}
+h1{text-align:center}
+input,button{padding:10px;margin:4px;border-radius:6px;border:1px solid #ccc}
+button{background:#0077ff;color:#fff;border:none;cursor:pointer}
+.hidden{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+img,video{max-width:100%;border-radius:6px}
+.card{background:#fff;padding:6px;border-radius:6px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Încarcă poze & videoclipuri din telefon</h1>
+<h1>Galerie Poze & Video</h1>
 
-  <div id="drop" class="drop">
-    <div class="small">Trage fișiere aici sau apasă butonul</div>
-    <div class="controls">
-      <label class="btn">
-        Selectează fișiere
-        <input id="fileInput" type="file" accept="image/*,video/*" multiple>
-      </label>
-      <button id="uploadBtn" class="btn">Încarcă tot</button>
-      <a href="/gallery" class="gallery">Vezi galeria</a>
-    </div>
-    <div class="small">Pe iPhone: folosește <em>Photo Library</em> sau <em>Files</em> pentru a selecta multiple imagini/video.</div>
-  </div>
+<div id="authDiv">
+<h2>Login / Register</h2>
+<input id="username" placeholder="Username"><br>
+<input id="password" type="password" placeholder="Parolă"><br>
+<button id="btnLogin">Login</button>
+<button id="btnRegister">Register</button>
+<div id="authMsg" style="color:red;margin-top:6px"></div>
+</div>
 
-  <div id="preview" class="grid" style="margin-top:14px"></div>
+<div id="appDiv" class="hidden">
+<button id="btnLogout">Logout</button>
+<h2>Upload Poze & Video</h2>
+<input type="file" id="fileInput" multiple accept="image/*,video/*"><br>
+<button id="btnUpload">Încarcă</button>
+<div id="uploadMsg" style="margin-top:6px;color:green"></div>
+
+<h3>Galeria ta</h3>
+<div id="gallery" class="grid"></div>
+</div>
 </div>
 
 <script>
-const fileInput = document.getElementById('fileInput');
-const drop = document.getElementById('drop');
-const preview = document.getElementById('preview');
-const uploadBtn = document.getElementById('uploadBtn');
-
-let filesToUpload = [];
+// Simulare stocare utilizatori în localStorage
+let users = JSON.parse(localStorage.getItem('users') || '{}');
+let currentUser = null;
 
 // Helpers
-function humanSize(bytes){
-  if(bytes < 1024) return bytes + ' B';
-  if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+' KB';
-  if(bytes < 1024*1024*1024) return (bytes/(1024*1024)).toFixed(1)+' MB';
-  return (bytes/(1024*1024*1024)).toFixed(2)+' GB';
-}
+function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
+function showAuth(msg){ document.getElementById('authDiv').classList.remove('hidden'); document.getElementById('appDiv').classList.add('hidden'); document.getElementById('authMsg').innerText=msg||'';}
+function showApp(){ document.getElementById('authDiv').classList.add('hidden'); document.getElementById('appDiv').classList.remove('hidden'); loadGallery();}
 
-function addPreview(file){
-  const card = document.createElement('div'); card.className='card';
-  const title = document.createElement('div'); title.className='small'; title.innerText = file.name + ' · ' + humanSize(file.size);
-  const holder = document.createElement('div');
-
-  if(file.type.startsWith('image/')){
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(file);
-    img.onload = ()=> URL.revokeObjectURL(img.src);
-    holder.appendChild(img);
-  } else if(file.type.startsWith('video/')){
-    const v = document.createElement('video'); v.controls=true; v.muted=true; v.width=200;
-    v.src = URL.createObjectURL(file);
-    v.onload = ()=> URL.revokeObjectURL(v.src);
-    holder.appendChild(v);
-  } else {
-    holder.innerText = 'Fișier: ' + file.type;
-  }
-
-  const prog = document.createElement('div'); prog.className='prog';
-  const bar = document.createElement('div'); bar.className='bar';
-  prog.appendChild(bar);
-
-  const remove = document.createElement('button'); remove.className='small'; remove.innerText='Elimină';
-  remove.onclick = ()=> { filesToUpload = filesToUpload.filter(f=>f !== file); card.remove(); };
-
-  card.appendChild(holder);
-  card.appendChild(title);
-  card.appendChild(prog);
-  card.appendChild(remove);
-  preview.appendChild(card);
-
-  return bar;
-}
-
-fileInput.addEventListener('change', (e)=>{
-  const list = Array.from(e.target.files);
-  list.forEach(f=>{
-    filesToUpload.push(f);
-    addPreview(f);
-  });
+// Login/Register
+document.getElementById('btnRegister').addEventListener('click', ()=>{
+  const u = document.getElementById('username').value.trim();
+  const p = document.getElementById('password').value.trim();
+  if(!u||!p){ showAuth('Completează username și parolă'); return;}
+  if(users[u]){ showAuth('Username deja există'); return;}
+  users[u] = { password: p, files: [] };
+  saveUsers();
+  showAuth('Cont creat, te poți loga');
 });
 
-// drag & drop
-drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('drag'); });
-drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
-drop.addEventListener('drop', (e)=>{
-  e.preventDefault(); drop.classList.remove('drag');
-  const list = Array.from(e.dataTransfer.files);
-  list.forEach(f=>{ filesToUpload.push(f); addPreview(f); });
+document.getElementById('btnLogin').addEventListener('click', ()=>{
+  const u = document.getElementById('username').value.trim();
+  const p = document.getElementById('password').value.trim();
+  if(!u||!p){ showAuth('Completează username și parolă'); return;}
+  if(!users[u] || users[u].password !== p){ showAuth('Username/parolă incorecte'); return;}
+  currentUser = u;
+  showApp();
 });
 
-// upload routine with progress per file
-async function uploadAll(){
-  if(filesToUpload.length === 0){ alert('Nicio poză/video selectată'); return; }
+document.getElementById('btnLogout').addEventListener('click', ()=>{
+  currentUser = null; showAuth();
+});
 
-  // iterate files, build formData, send fetch for each with progress via XHR
-  for(const file of [...filesToUpload]){ // copy since we remove on success
-    const bar = addPreview(file); // show a second preview for progress? better: we already added earlier; find matching bar
-    // find the existing bar for this file: (simpler approach: create mapping above. For brevity we'll upload with single XHR and update progress globally.)
-  }
-
-  // Simpler: show a combined progress per file using XMLHttpRequest
-  for(const file of filesToUpload.slice()){ // iterate copy
-    await uploadSingle(file);
-  }
-
-  // after all
-  alert('Toate fișierele au fost trimise (sau s-au încercat). Vezi /gallery');
-  filesToUpload = [];
-  preview.innerHTML = '';
-}
-
-function uploadSingle(file){
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/upload');
-    const fd = new FormData();
-    fd.append('file', file, file.name);
-
-    // create a temp progress bar visually
-    const tmpBar = document.createElement('div'); tmpBar.className='bar';
-    const tmpWrap = document.createElement('div'); tmpWrap.className='prog'; tmpWrap.style.marginTop='6px'; tmpWrap.appendChild(tmpBar);
-    // append to top of preview area
-    const wrapper = document.createElement('div'); wrapper.style.marginBottom='6px'; wrapper.appendChild(document.createTextNode('Uploading: ' + file.name)); wrapper.appendChild(tmpWrap);
-    preview.insertBefore(wrapper, preview.firstChild);
-
-    xhr.upload.addEventListener('progress', (e)=>{
-      if(e.lengthComputable){
-        const p = Math.round((e.loaded / e.total) * 100);
-        tmpBar.style.width = p + '%';
-      }
-    });
-
-    xhr.onreadystatechange = ()=>{
-      if(xhr.readyState === 4){
-        if(xhr.status >= 200 && xhr.status < 300){
-          tmpBar.style.width = '100%';
-          resolve(xhr.responseText);
-          wrapper.remove();
-        } else {
-          tmpBar.style.background = '#ff3860';
-          log('Eroare upload: ' + xhr.status + ' ' + xhr.responseText);
-          resolve(null); // resolve to continue others
-          wrapper.remove();
-        }
-      }
+// Upload
+document.getElementById('btnUpload').addEventListener('click', ()=>{
+  if(!currentUser) return;
+  const files = document.getElementById('fileInput').files;
+  if(files.length===0){ alert('Selectează fișiere'); return;}
+  for(const f of files){
+    const reader = new FileReader();
+    reader.onload = e=>{
+      users[currentUser].files.push({name:f.name,type:f.type,data:e.target.result});
+      saveUsers();
+      loadGallery();
     };
+    reader.readAsDataURL(f);
+  }
+});
 
-    xhr.send(fd);
+// Load gallery
+function loadGallery(){
+  if(!currentUser) return;
+  const gal = document.getElementById('gallery');
+  gal.innerHTML = '';
+  users[currentUser].files.forEach(f=>{
+    const card = document.createElement('div'); card.className='card';
+    if(f.type.startsWith('image/')){
+      const img = document.createElement('img'); img.src=f.data; card.appendChild(img);
+    } else if(f.type.startsWith('video/')){
+      const v = document.createElement('video'); v.src=f.data; v.controls=true; card.appendChild(v);
+    }
+    gal.appendChild(card);
   });
 }
 
-uploadBtn.addEventListener('click', uploadAll);
-
-// convenience: visit gallery link if server serves it
+// La încărcare, verifică dacă există user curent (nu persistă sesiune)
+showAuth();
 </script>
 </body>
 </html>
