@@ -1,59 +1,31 @@
-// server.js
-const express = require('express');
-const fetch = require('node-fetch');
-const app = express();
-app.use(express.json());
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Miner Payout</title>
+</head>
+<body>
+<h1>Retrage bani pe PayPal</h1>
+<input type="email" id="email" placeholder="Email PayPal" />
+<input type="number" id="amount" placeholder="Amount USD" />
+<button onclick="withdraw()">Retragere</button>
+<pre id="result"></pre>
 
-const CLIENT_ID = "AICI_CLIENT_ID";
-const SECRET = "AICI_SECRET";
+<script>
+async function withdraw() {
+    const email = document.getElementById('email').value;
+    const amount = parseFloat(document.getElementById('amount').value);
 
-// 1. Obține token de acces
-async function getAccessToken() {
-    const res = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
+    const res = await fetch('https://YOUR_SERVER_DOMAIN/payout', {
         method: 'POST',
-        headers: {
-            'Authorization': 'Basic ' + Buffer.from(CLIENT_ID + ':' + SECRET).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: 'grant_type=client_credentials'
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, amount })
     });
+
     const data = await res.json();
-    return data.access_token;
+    document.getElementById('result').innerText = JSON.stringify(data, null, 2);
 }
-
-// 2. Endpoint de payout
-app.post('/payout', async (req, res) => {
-    const { email, amount } = req.body;
-
-    if (!email || !amount) return res.status(400).json({error: "Email și amount necesare"});
-
-    const token = await getAccessToken();
-
-    const payoutBody = {
-        sender_batch_header: {
-            sender_batch_id: `batch_${Date.now()}`,
-            email_subject: "Payout MiniMiner"
-        },
-        items: [{
-            recipient_type: "EMAIL",
-            amount: { value: amount.toFixed(2), currency: "USD" },
-            receiver: email,
-            note: "Payout MiniMiner",
-            sender_item_id: `item_${Date.now()}`
-        }]
-    };
-
-    const payoutRes = await fetch('https://api-m.sandbox.paypal.com/v1/payments/payouts', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payoutBody)
-    });
-
-    const data = await payoutRes.json();
-    res.json(data);
-});
-
-app.listen(3000, () => console.log("Server running on port 3000"));
+</script>
+</body>
+</html>
