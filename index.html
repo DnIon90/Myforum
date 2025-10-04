@@ -3,270 +3,373 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Demo Miner (simulat) — Login & Withdraw (simulat)</title>
+<title>Mini Payouts — Single File (demo + backend-ready)</title>
 <style>
-  body{font-family:Arial,Helvetica,sans-serif;background:#0b1220;color:#e6eef8;margin:0;padding:20px}
-  .box{max-width:420px;margin:12px auto;background:#0f1724;padding:18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
-  h1{margin:0 0 12px;font-size:20px;text-align:center}
-  input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #243241;background:#071025;color:#fff}
-  button{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:none;background:#f4b400;color:#000;font-weight:700;cursor:pointer}
-  small{color:#9fb0c6}
-  #canvas{width:100%;height:180px;background:linear-gradient(180deg,#071226,#0a1b2a);border-radius:8px;display:block;margin:12px 0}
-  .row{display:flex;gap:8px}
-  .half{flex:1}
-  .notice{background:#11202b;padding:8px;border-radius:6px;color:#a8c2d6;font-size:13px;margin-top:10px}
-  pre{white-space:pre-wrap;color:#a8c2d6;background:#071722;padding:8px;border-radius:6px}
+  :root{--bg:#071226;--card:#0f1724;--muted:#9fb0c6;--gold:#f4b400}
+  body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg),#071725);color:#e6eef8;display:flex;justify-content:center;padding:20px}
+  .wrap{max-width:940px;width:100%;display:grid;grid-template-columns:1fr;gap:14px}
+  .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  h1{margin:0 0 6px;font-size:20px;text-align:center}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  input,select,button{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:#fff}
+  input{min-width:0;flex:1}
+  button{background:var(--gold);color:#000;border:none;cursor:pointer;font-weight:700}
+  #canvas{width:100%;height:220px;border-radius:8px;background:linear-gradient(180deg,#071226,#0a1b2a);display:block}
+  pre{white-space:pre-wrap;background:#071722;padding:10px;border-radius:8px;color:var(--muted);overflow:auto}
+  .muted{color:var(--muted);font-size:13px}
+  .small{font-size:13px;color:var(--muted)}
+  .flex-between{display:flex;justify-content:space-between;align-items:center}
+  @media(min-width:880px){ .wrap{grid-template-columns: 1fr 420px} }
 </style>
 </head>
 <body>
 
-<div class="box" id="authBox">
-  <h1>Demo Miner (simulat)</h1>
-  <div id="forms">
-    <div id="registerSection">
-      <input id="regEmail" placeholder="Email (demo)" />
-      <input id="regPass" type="password" placeholder="Parolă" />
-      <button onclick="register()">Înregistrează (demo)</button>
-      <small>Parola este securizată cu SHA‑256 în browser (doar demo).</small>
+<div class="wrap">
+
+  <!-- Left: app -->
+  <div class="card" id="mainCard">
+    <h1>Mini Payouts — demo & backend-ready</h1>
+
+    <div id="modeNotice" class="small muted">La încărcare ți se va cere BACKEND URL; lasă gol pentru modul DEMO (localStorage only). Pentru plăți reale trebuie backend cu Stripe (server.js).</div>
+
+    <!-- Backend prompt handled by JS; shows current mode -->
+    <div style="margin-top:12px" class="flex-between">
+      <div>
+        <label class="small">Backend URL:</label><br>
+        <input id="backendInput" placeholder="ex: https://example.com  sau lasă gol pentru DEMO">
+      </div>
+      <div style="min-width:130px">
+        <label class="small">Modul:</label><br>
+        <select id="modeSelect">
+          <option value="auto">Auto detect (prompt)</option>
+          <option value="demo">Forțează DEMO</option>
+          <option value="backend">Forțează BACKEND</option>
+        </select>
+      </div>
     </div>
 
     <hr style="border:none;height:1px;background:#0b2636;margin:12px 0">
 
-    <div id="loginSection">
-      <input id="logEmail" placeholder="Email" />
-      <input id="logPass" type="password" placeholder="Parolă" />
-      <button onclick="login()">Autentificare (demo)</button>
+    <!-- Auth -->
+    <div id="authSection">
+      <div class="row">
+        <input id="emailIn" placeholder="Email">
+        <input id="passIn" type="password" placeholder="Parolă">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnRegister">Register (demo/back)</button>
+        <button id="btnLogin">Login</button>
+      </div>
+      <div class="small muted" style="margin-top:8px">Notă: în modul demo conturile și balanțele sunt stocate local (LocalStorage). În modul backend se apelează endpoint-urile /api/register și /api/login ale serverului tău.</div>
+    </div>
+
+    <div id="appSection" style="display:none;margin-top:12px">
+      <div class="flex-between">
+        <div>
+          <div class="small">Logged in as</div>
+          <div id="meEmail" style="font-weight:700"></div>
+        </div>
+        <div style="text-align:right">
+          <div class="small">Balance (USD)</div>
+          <div id="balanceAmount" style="font-weight:700">$0.00</div>
+        </div>
+      </div>
+
+      <!-- Canvas / game -->
+      <canvas id="canvas"></canvas>
+
+      <div class="row" style="margin-top:8px">
+        <button id="btnMine">Minează manual</button>
+        <button id="btnAuto">Pornește Auto</button>
+        <button id="btnShop">Upgrade (crește rate)</button>
+      </div>
+
+      <hr style="border:none;height:1px;background:#0b2636;margin:12px 0">
+
+      <!-- Stripe connect / withdraw -->
+      <div>
+        <button id="btnConnect">Conectează Stripe (onboarding)</button>
+        <div class="small muted">Dacă rulezi backend, butonul va deschide linkul Stripe returnat de /api/connect. În demo va afișa instrucțiuni.</div>
+      </div>
+
+      <div style="margin-top:8px">
+        <input id="withdrawAmount" placeholder="Sumă USD">
+        <button id="btnWithdraw">Retragere către Visa (instant) — real doar cu backend</button>
+      </div>
+
+      <div style="margin-top:8px">
+        <pre id="log">Jurnal activități (ultimele acțiuni)</pre>
+      </div>
+
+      <div style="margin-top:8px" class="row">
+        <button id="btnLogout" style="background:#2b6cb0;color:#fff">Logout</button>
+        <button id="btnAdminAddFunds" style="background:#2d3748;color:#fff">(Admin) Adaugă fonduri $ (demo)</button>
+      </div>
+
+      <div class="small muted" style="margin-top:8px">
+        <strong>Avertisment:</strong> pentru plăți reale ai nevoie de un backend securizat cu STRIPE_SECRET_KEY și de a respecta KYC/AML. Nu introduce niciodată chei secrete în frontend.
+      </div>
     </div>
   </div>
 
-  <div class="notice">
-    <strong>Atenție:</strong> Acesta este un DEMO. Nu se minează Bitcoin real în browser și nu se trimit bani pe card Visa. Pentru plăți reale ai nevoie de un server și integrare cu Stripe/PayPal.
-  </div>
-</div>
+  <!-- Right: help / quick steps -->
+  <div class="card">
+    <h3>Ghid rapid</h3>
+    <ol class="small">
+      <li>Lasă Backend URL gol → apasă Register → folosește modul <strong>DEMO</strong> (cel mai simplu).</li>
+      <li>Dacă vrei plăți reale: rulează backend (server.js) pe un host, introdu URL‑ul în câmpul Backend URL și schimbă modul pe <strong>BACKEND</strong>.</li>
+      <li>Pe backend rulează: <code>cp .env.example .env</code> și setează <code>STRIPE_SECRET_KEY</code> (test).</li>
+      <li>Folosește endpointul admin pentru a adăuga fonduri în test: <code>/api/admin/add-funds</code>.</li>
+      <li>Finalizează onboarding Stripe din interfața (butonul Connect) pentru test accounts.</li>
+    </ol>
 
-<div class="box" id="appBox" style="display:none">
-  <h1>Dashboard (demo)</h1>
-  <div>Logged in: <span id="meEmail"></span></div>
-  <div id="balance" style="font-size:18px;margin:8px 0">Balance: 0.000000 BTC</div>
+    <h4 style="margin-top:12px">Ce face acest fișier</h4>
+    <div class="small muted">• demo: totul local (LocalStorage).<br>• backend-ready: dacă pui BACKEND URL, frontend trimite cereri la endpointurile standard: <code>/api/register</code>, <code>/api/login</code>, <code>/api/connect</code>, <code>/api/withdraw</code>.</div>
 
-  <canvas id="canvas"></canvas>
-
-  <div class="row">
-    <button class="half" onclick="manualMine()">Minează manual</button>
-    <button class="half" onclick="toggleAuto()"><span id="autoLabel">Pornește Auto</span></button>
-  </div>
-
-  <div style="margin-top:10px">
-    <input id="cardLast4" placeholder="Card Visa (ultimele 4 cifre) — demo" />
-    <input id="withdrawAmount" placeholder="Sumă USD (simulat)" />
-    <button onclick="withdraw()">Withdraw to Visa (simulat)</button>
+    <h4 style="margin-top:12px">Vrei ajutor la deploy?</h4>
+    <div class="small muted">Îți pot trimite instrucțiuni pentru Heroku / Vercel sau webhook pentru Stripe — spune "Deploy" sau "Webhook".</div>
   </div>
 
-  <div class="notice" style="margin-top:12px">
-    Acțiune withdraw este doar simulare: se înregistrează cererea local și scade balanța demo. Nu se efectuează transferuri reale. Pentru transfer real folosește backend + Stripe Connect (pot să te ajut cu asta).
-  </div>
-
-  <pre id="log">Jurnal activități (demo)</pre>
-  <button style="margin-top:10px;background:#2b6cb0;color:#fff" onclick="logout()">Logout</button>
 </div>
 
 <script>
-// ---------- Utilities: SHA-256 (Web Crypto) ----------
-async function sha256hex(str) {
-  const enc = new TextEncoder();
-  const data = enc.encode(str);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  const bytes = new Uint8Array(hash);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+/*
+  Single-file frontend that supports two modes:
+   - DEMO mode: all data (users, balances) in LocalStorage; simulated mining and withdraws.
+   - BACKEND mode: calls your backend (same API shape as server.js provided earlier).
+  Behavior:
+   - On load, if BACKEND URL provided, uses backend mode; otherwise demo.
+   - All sensitive ops (real withdrawals, Stripe onboarding) must be done via backend.
+*/
+
+const e = (id)=>document.getElementById(id);
+let BACKEND = '';
+let MODE = 'demo'; // 'demo' or 'backend'
+const LOG = e('log');
+
+// ---------- Utilities ----------
+function log(msg){
+  const t = new Date().toLocaleTimeString();
+  LOG.innerText = `[${t}] ${msg}\n` + LOG.innerText;
+  console.log(msg);
+}
+function toCents(v){ return Math.round(parseFloat(v||0)*100); }
+function fmtMoney(c){ return '$' + (c/100).toFixed(2); }
+
+// ---------- Demo user store (LocalStorage) ----------
+function demoKey(email){ return 'demo_user_' + email.toLowerCase(); }
+function demoGetUser(email){ const b=localStorage.getItem(demoKey(email)); return b?JSON.parse(b):null; }
+function demoSaveUser(user){ localStorage.setItem(demoKey(user.email), JSON.stringify(user)); }
+function demoCreateUser(email, pass){
+  if(demoGetUser(email)) return { error:'Email deja exista (demo)' };
+  const user = { email: email.toLowerCase(), passHash: btoa(pass), balance_cents: 0, connected:false };
+  demoSaveUser(user); return { ok:true };
+}
+function demoAuth(email, pass){
+  const u = demoGetUser(email); if(!u) return { error:'User inexistent (demo)' };
+  if(u.passHash !== btoa(pass)) return { error:'Parolă greșită (demo)' };
+  return { ok:true, user:u };
 }
 
-// ---------- Simple local storage "user DB" (demo only) ----------
-function saveUserRecord(email, pwHash) {
-  const key = 'demo_user_' + email.toLowerCase();
-  const rec = { email: email.toLowerCase(), pwHash, balance_satoshi: 0 }; // balance in satoshi-like units (virtual)
-  localStorage.setItem(key, JSON.stringify(rec));
+// ---------- Session ----------
+function setSession(email, token){
+  sessionStorage.setItem('mini_email', email);
+  sessionStorage.setItem('mini_token', token || 'demo-token');
 }
-function getUserRecord(email) {
-  const key = 'demo_user_' + email.toLowerCase();
-  const raw = localStorage.getItem(key);
-  return raw ? JSON.parse(raw) : null;
-}
-function setUserRecord(email, rec) {
-  const key = 'demo_user_' + email.toLowerCase();
-  localStorage.setItem(key, JSON.stringify(rec));
+function clearSession(){ sessionStorage.removeItem('mini_email'); sessionStorage.removeItem('mini_token'); }
+function getSession(){ return sessionStorage.getItem('mini_email'); }
+
+// ---------- UI helpers ----------
+function showAuth(){ e('authSection').style.display='block'; e('appSection').style.display='none'; }
+function showApp(){ e('authSection').style.display='none'; e('appSection').style.display='block'; refreshUI(); }
+function refreshUI(){
+  const email = getSession();
+  if(!email) { showAuth(); return; }
+  e('meEmail').innerText = email;
+  if(MODE==='demo'){
+    const u = demoGetUser(email);
+    e('balanceAmount').innerText = fmtMoney(u.balance_cents || 0);
+  } else {
+    // fetch /api/me
+    fetch(BACKEND + '/api/me', { headers: { Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') } })
+      .then(r => r.json()).then(d => {
+        if(d.user) e('balanceAmount').innerText = fmtMoney(d.user.balance_cents || 0);
+        else { log('Eroare la /api/me: ' + JSON.stringify(d)); }
+      }).catch(err=>{ log('Eroare fetch /api/me: '+err.message); });
+  }
 }
 
-// ---------- Auth ----------
-async function register() {
-  const email = document.getElementById('regEmail').value.trim();
-  const pass = document.getElementById('regPass').value;
+// ---------- Auth actions ----------
+async function register(){
+  const email = e('emailIn').value.trim();
+  const pass = e('passIn').value;
   if(!email || !pass) return alert('Completează email și parolă');
-  if(getUserRecord(email)) return alert('Email deja folosit (demo)');
-  const hash = await sha256hex(pass);
-  saveUserRecord(email, hash);
-  log(`Cont creat (demo): ${email}`);
-  alert('Cont creat (demo). Acum te poți loga.');
-}
-async function login() {
-  const email = document.getElementById('logEmail').value.trim();
-  const pass = document.getElementById('logPass').value;
-  if(!email || !pass) return alert('Completează email și parolă');
-  const rec = getUserRecord(email);
-  if(!rec) return alert('Cont inexistent (demo)');
-  const hash = await sha256hex(pass);
-  if(hash !== rec.pwHash) return alert('Parolă greșită (demo)');
-  // login success
-  sessionStorage.setItem('demo_logged_in', email.toLowerCase());
-  showApp();
-  log(`Autentificat: ${email}`);
-}
-function logout() {
-  sessionStorage.removeItem('demo_logged_in');
-  location.reload();
-}
-function currentUser() {
-  return sessionStorage.getItem('demo_logged_in');
+
+  if(MODE==='demo'){
+    const r = demoCreateUser(email, pass);
+    if(r.error) return alert(r.error);
+    log('Cont creat (demo): ' + email);
+    alert('Cont creat în modul demo. Apasă Login.');
+  } else {
+    // backend register
+    try {
+      const res = await fetch(BACKEND + '/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass}) });
+      const data = await res.json();
+      if(data.ok) { log('Cont creat pe backend: '+email); alert('Cont creat pe backend. Autentifică-te.'); }
+      else { alert('Eroare: ' + JSON.stringify(data)); }
+    } catch(err){ alert('Eroare la register: ' + err.message); }
+  }
 }
 
-// ---------- UI / Mining logic (simulat) ----------
-const canvas = document.getElementById('canvas');
+async function login(){
+  const email = e('emailIn').value.trim();
+  const pass = e('passIn').value;
+  if(!email || !pass) return alert('Completează email și parolă');
+
+  if(MODE==='demo'){
+    const r = demoAuth(email, pass);
+    if(r.error) return alert(r.error);
+    setSession(email, 'demo-token');
+    log('Autentificat (demo): ' + email);
+    showApp();
+  } else {
+    try {
+      const res = await fetch(BACKEND + '/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass})});
+      const d = await res.json();
+      if(d.token){ setSession(email, d.token); sessionStorage.setItem('mini_token', d.token); log('Autentificat pe backend: ' + email); showApp(); }
+      else { alert('Eroare login: ' + JSON.stringify(d)); }
+    } catch(err){ alert('Eroare login: '+err.message); }
+  }
+}
+
+function logout(){ clearSession(); location.reload(); }
+
+// ---------- Mini-game (canvas) ----------
+const canvas = e('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = canvas.clientWidth;
-canvas.height = 160;
+function resizeCanvas(){ canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; ctx.scale(devicePixelRatio, devicePixelRatio); }
+function fitCanvas(){ canvas.style.height = '220px'; resizeCanvas(); }
+fitCanvas();
 
-let falling = [];
-let autoOn = false;
-let autoInterval = null;
-
-function spawn() {
-  falling.push({ x: Math.random()*(canvas.width-30)+15, y: -10, r: 8+Math.random()*8, speed: 1+Math.random()*2 });
-}
-function draw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // background simple
-  ctx.fillStyle = 'rgba(255,255,255,0.02)';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  // draw falling coins
-  for(let i=falling.length-1;i>=0;i--){
-    const c = falling[i];
-    c.y += c.speed;
-    // coin
+let coins = [];
+function spawnCoin(){ coins.push({ x: Math.random()*(canvas.clientWidth-40)+20, y:-10, r:8+Math.random()*8, speed: 1+Math.random()*2 }); }
+function draw(){
+  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  for(let i=coins.length-1;i>=0;i--){
+    const c = coins[i]; c.y += c.speed;
     ctx.beginPath();
     const g = ctx.createRadialGradient(c.x-3,c.y-3,1,c.x,c.y,c.r*1.2);
     g.addColorStop(0,'#fff6d6'); g.addColorStop(1,'#b88600');
-    ctx.fillStyle = g;
-    ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.stroke();
-    if(c.y > canvas.height + 10) falling.splice(i,1);
+    ctx.fillStyle = g; ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.stroke();
+    if(c.y > canvas.clientHeight + 10) coins.splice(i,1);
   }
   requestAnimationFrame(draw);
 }
-canvas.addEventListener('click', (e)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  for(let i=falling.length-1;i>=0;i--){
-    const c = falling[i];
-    const d = Math.hypot(mx - c.x, my - c.y);
-    if(d < c.r+6){
-      // collected by click -> bigger reward
-      reward(1000); // 1000 virtual satoshi
-      falling.splice(i,1);
-      log('Monedă colectată manual (+1000 units)');
-      return;
-    }
+canvas.addEventListener('click', (ev)=>{
+  const rect = canvas.getBoundingClientRect(); const mx = ev.clientX-rect.left; const my = ev.clientY-rect.top;
+  for(let i=coins.length-1;i>=0;i--){ const c=coins[i]; const d = Math.hypot(mx-c.x,my-c.y); if(d < c.r+6){ collectReward(500); coins.splice(i,1); log('Monedă colectată (click) +$0.50 (sim)'); break; } }
+});
+setInterval(()=>{ if(Math.random() < 0.6) spawnCoin(); for(let i=coins.length-1;i>=0;i--){ if(coins[i].y > canvas.clientHeight-6){ collectReward(100); coins.splice(i,1); log('Monedă colectată auto +$0.10 (sim)'); } } }, 800);
+draw();
+
+// ---------- Balances / rewards ----------
+function collectReward(cents){
+  const email = getSession();
+  if(!email) return;
+  if(MODE==='demo'){
+    const u = demoGetUser(email); u.balance_cents = (u.balance_cents||0) + cents; demoSaveUser(u); refreshUI();
+  } else {
+    // In backend mode you could call /api/mine or a credit endpoint. For safety this template does NOT auto-credit backend.
+    log('În modul backend, trebuie să ai un endpoint care să acorde fonduri. Folosește /api/admin/add-funds sau integrează mecanica ta.');
+  }
+}
+
+// ---------- Auto/mining toggle / shop (demo simplicity) ----------
+let autoOn = false; let autoInterval = null;
+function toggleAuto(){
+  if(!getSession()){ alert('Loghează-te mai întâi'); return; }
+  autoOn = !autoOn;
+  e('btnAuto').innerText = autoOn ? 'Oprește Auto' : 'Pornește Auto';
+  if(autoOn){ autoInterval = setInterval(()=>{ collectReward(250); log('Auto mining tick +$2.50 (sim)'); }, 2000); } else { clearInterval(autoInterval); }
+}
+e('btnAuto').addEventListener('click', toggleAuto);
+e('btnMine').addEventListener('click', ()=>{ collectReward(200); log('Mining manual +$2.00 (sim)'); });
+e('btnShop').addEventListener('click', ()=>{ // demo upgrade: cost $5 -> increase auto yield
+  const email = getSession(); if(!email) return alert('Loghează-te'); if(MODE==='demo'){ const u = demoGetUser(email); if((u.balance_cents||0) < 500){ return alert('Fonduri insuficiente (demo)'); } u.balance_cents -= 500; demoSaveUser(u); log('Upgrade cumpărat (demo): -$5.00'); refreshUI(); } else { alert('În modul backend, implementează un endpoint /api/buy-upgrade'); }
+});
+
+// ---------- Connect Stripe / Withdraw ----------
+async function connectStripe(){
+  const email = getSession(); if(!email) return alert('Loghează-te');
+  if(MODE==='demo'){ alert('Demo: conectarea Stripe e simulată. Pentru conectare reală rulează backend și setează BACKEND URL.'); return; }
+  try{
+    const res = await fetch(BACKEND + '/api/connect', { method:'POST', headers: { Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') }});
+    const d = await res.json();
+    if(d.url){ window.open(d.url, '_blank'); log('Deschis Stripe onboarding link.'); }
+    else { alert('Eroare connect: ' + JSON.stringify(d)); }
+  } catch(err){ alert('Eroare connect: '+err.message); }
+}
+e('btnConnect').addEventListener('click', connectStripe);
+
+async function withdraw(){
+  const email = getSession(); if(!email) return alert('Loghează-te');
+  const amount = parseFloat(e('withdrawAmount').value);
+  if(!amount || amount <= 0) return alert('Sumă invalidă');
+  const cents = toCents(amount);
+  if(MODE==='demo'){
+    const u = demoGetUser(email); if((u.balance_cents||0) < cents) return alert('Fonduri insuficiente (demo)');
+    u.balance_cents -= cents; demoSaveUser(u); refreshUI();
+    // record withdraw in local log
+    const w = JSON.parse(localStorage.getItem('demo_withdraws')||'[]'); w.unshift({ email, amount, ts: new Date().toISOString(), status:'SIMULATED' }); localStorage.setItem('demo_withdraws', JSON.stringify(w));
+    log(`Withdraw simulată: ${fmtMoney(cents)} -> (sim) (nu se trimit bani reali)`);
+    alert('Cerere de retragere simulată înregistrată (demo).');
+    return;
+  }
+  // backend mode
+  try{
+    const res = await fetch(BACKEND + '/api/withdraw', { method:'POST', headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + sessionStorage.getItem('mini_token') }, body: JSON.stringify({ amount_cents: cents })});
+    const d = await res.json();
+    if(d.ok){ log('Withdraw realizată: ' + JSON.stringify(d.transfer || {})); alert('Withdraw trimis. Verifică logul și Stripe Dashboard.'); refreshUI(); }
+    else { alert('Eroare withdraw: ' + JSON.stringify(d)); log('Withdraw error: ' + JSON.stringify(d)); }
+  } catch(err){ alert('Eroare withdraw: '+err.message); }
+}
+e('btnWithdraw').addEventListener('click', withdraw);
+
+// ---------- Admin add funds (demo) ----------
+e('btnAdminAddFunds').addEventListener('click', ()=>{
+  const email = prompt('Email user (pentru demo):'); const v = prompt('Suma în USD de adăugat (ex: 5 pentru $5):');
+  if(!email || !v) return;
+  const cents = Math.round(parseFloat(v)*100);
+  if(MODE==='demo'){
+    let u = demoGetUser(email); if(!u) { if(!confirm('User inexistent. Creăm cont demo pentru acest email?')) return; demoCreateUser(email, 'demo123'); u = demoGetUser(email); }
+    u.balance_cents = (u.balance_cents||0) + cents; demoSaveUser(u); log(`Admin: adăugat ${fmtMoney(cents)} la ${email} (demo)`); if(getSession()===email) refreshUI();
+  } else {
+    // call backend admin endpoint (note: in production protect this endpoint)
+    fetch(BACKEND + '/api/admin/add-funds', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, cents }) })
+      .then(r=>r.json()).then(d=>{ log('Admin add funds backend: ' + JSON.stringify(d)); alert(JSON.stringify(d)); }).catch(err=>alert('Eroare admin add-funds: '+err.message));
   }
 });
 
-// reward: add virtual satoshi-like units
-function reward(units) {
-  const email = currentUser();
-  if(!email) return;
-  const rec = getUserRecord(email);
-  rec.balance_satoshi = (rec.balance_satoshi || 0) + units;
-  setUserRecord(email, rec);
-  refreshBalance();
-}
+// ---------- init: backend input, mode selection ----------
+e('backendInput').addEventListener('change', ()=>{ BACKEND = e('backendInput').value.trim(); });
+e('modeSelect').addEventListener('change', ()=>{ const v = e('modeSelect').value; if(v==='demo') { MODE='demo'; e('backendInput').value=''; BACKEND=''; } else if(v==='backend'){ MODE='backend'; BACKEND = e('backendInput').value.trim(); } else { MODE='auto'; } });
+e('btnRegister').addEventListener('click', register); e('btnLogin').addEventListener('click', login); e('btnLogout').addEventListener('click', logout);
 
-// periodic auto collect (by reaching bottom)
-setInterval(()=>{
-  // spawn sometimes
-  if(Math.random() < 0.6) spawn();
-  // coins that reach bottom are auto-collected:
-  for(let i=falling.length-1;i>=0;i--){
-    if(falling[i].y > canvas.height - 6){
-      reward(100); // auto-collected smaller
-      falling.splice(i,1);
-    }
+// On load: prompt for backend or demo auto
+window.addEventListener('load', async ()=>{
+  // Auto prompt only if modeSelect=auto
+  if(e('modeSelect').value === 'auto'){
+    const url = prompt('Dacă ai un backend (server.js) rulează-l și scrie URL (ex: https://example.com). Lasă gol pentru DEMO:', '');
+    if(url && url.trim().length>0){ BACKEND = url.trim(); MODE='backend'; e('modeSelect').value='backend'; e('backendInput').value = BACKEND; log('Mod backend activat: ' + BACKEND); }
+    else { MODE='demo'; e('modeSelect').value='demo'; log('Mod demo activat (local).'); }
   }
-}, 700);
-
-// automatic mining that increases balance over time
-setInterval(()=>{
-  if(autoOn && currentUser()){
-    reward(250); // per tick when auto on
-    log('Auto mining tick +250 units');
-  }
-}, 2000);
-
-function manualMine(){ reward(500); log('Mining manual +500 units'); }
-function toggleAuto(){
-  autoOn = !autoOn;
-  document.getElementById('autoLabel').innerText = autoOn ? 'Oprește Auto' : 'Pornește Auto';
-  log('Auto mining ' + (autoOn ? 'pornit' : 'oprit'));
-}
-
-// ---------- Withdraw (simulat) ----------
-function withdraw(){
-  const email = currentUser();
-  if(!email) return alert('Loghează-te mai întâi.');
-  const amountUSD = parseFloat(document.getElementById('withdrawAmount').value);
-  const card4 = (document.getElementById('cardLast4').value || '').trim();
-  if(!amountUSD || amountUSD <= 0) return alert('Sumă invalidă');
-  if(!/^\d{4}$/.test(card4)) return alert('Introduce ultimele 4 cifre ale cardului (demo)');
-  // convert USD -> virtual units: define rate: 1 USD = 100000 units (demo)
-  const unitsNeeded = Math.round(amountUSD * 100000);
-  const rec = getUserRecord(email);
-  if(rec.balance_satoshi < unitsNeeded) return alert('Fonduri insuficiente (demo)');
-  // Simulate withdrawal: record a local "request", deduct balance
-  rec.balance_satoshi -= unitsNeeded;
-  setUserRecord(email, rec);
-  refreshBalance();
-  // save a local "withdrawal log"
-  const wlog = JSON.parse(localStorage.getItem('demo_withdraws')||'[]');
-  wlog.push({ email, amountUSD, card_last4: card4, timestamp: new Date().toISOString(), status: 'SIMULATED' });
-  localStorage.setItem('demo_withdraws', JSON.stringify(wlog));
-  log(`Cerere withdraw simulată: $${amountUSD.toFixed(2)} -> card ****${card4} (STATUS: SIMULATED)`);
-  alert('Withdraw simulată înregistrată (demo). Nu s-au trimis bani reali.');
-}
-
-// ---------- UI helpers ----------
-function refreshBalance(){
-  const email = currentUser();
-  if(!email) return;
-  const rec = getUserRecord(email);
-  // show as BTC-like: units -> BTC at 1e8 like satoshi
-  const btc = (rec.balance_satoshi || 0) / 100000000;
-  document.getElementById('balance').innerText = 'Balance: ' + btc.toFixed(8) + ' BTC (virtual demo)';
-}
-function showApp(){
-  const email = currentUser();
-  if(!email) return;
-  document.getElementById('authBox').style.display = 'none';
-  document.getElementById('appBox').style.display = 'block';
-  document.getElementById('meEmail').innerText = email;
-  refreshBalance();
-}
-function log(msg){
-  const p = document.getElementById('log');
-  p.innerText = `[${new Date().toLocaleTimeString()}] ` + msg + "\n" + p.innerText;
-}
-
-// on load: if session present show app
-if(currentUser()) showApp();
-draw();
+  // If session exists, show app
+  if(getSession()){ showApp(); } else { showAuth(); }
+  // resize handling
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+});
 
 </script>
 </body>
