@@ -1,349 +1,184 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ro">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Joc cu logare — Prinde pătratul</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runner Multiplayer</title>
 <style>
-  :root{--blue:#0b78d1;--bg:#f6f8fb}
-  body{font-family:system-ui,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;display:flex;justify-content:center}
-  .card{width:980px;max-width:100%;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(10,20,40,.08);padding:18px}
-  h1{margin:0 0 8px;color:var(--blue)}
-  .row{display:flex;gap:16px;align-items:center}
-  .col{flex:1}
-  form{display:flex;flex-direction:column;gap:8px}
-  input,button,select{padding:8px 10px;border-radius:6px;border:1px solid #d7dbe6;font-size:14px}
-  button{cursor:pointer;background:var(--blue);color:#fff;border:0}
-  .muted{color:#666;font-size:13px}
-  #game-area{display:flex;gap:18px;margin-top:14px}
-  #canvas-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
-  canvas{background:#081022;border-radius:6px}
-  #hud{display:flex;gap:12px;align-items:center}
-  .chip{background:#f1f5fb;padding:8px 10px;border-radius:999px;border:1px solid #e1e8f7}
-  .controls{display:flex;gap:8px}
-  .small{font-size:13px;color:#444;text-decoration:none}
-  .danger{background:#ff6b6b}
-  footer{margin-top:12px;color:#888;font-size:13px;text-align:center}
-  @media (max-width:760px){.row{flex-direction:column}}
+body{font-family:Arial,sans-serif;background:#d0f0c0;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;}
+#login-area, #game-area{margin-top:20px;}
+button,input{padding:8px;margin:5px;}
+canvas{background:#87CEEB;display:block;margin:20px auto;border:2px solid #000;}
+#leaderboard{margin-top:10px;}
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Prinde pătratul 🎯</h1>
-    <div class="row">
-      <div class="col" id="auth-col">
-        <!-- Auth forms go here -->
-        <div id="not-logged">
-          <p class="muted">Autentificare rapidă (ex: creezi cont local — se stochează doar în browserul tău).</p>
-          <form id="login-form">
-            <input id="login-username" placeholder="Username" required />
-            <input id="login-password" placeholder="Parolă" type="password" required />
-            <div style="display:flex;gap:8px">
-              <button type="submit">Loghează</button>
-              <button type="button" id="show-register" style="background:#2b8a3e">Înregistrează</button>
-            </div>
-            <p class="muted" style="margin:6px 0 0">Fără internet — totul rulează local în browser.</p>
-          </form>
 
-          <form id="register-form" style="display:none; margin-top:8px">
-            <input id="reg-username" placeholder="Alege un username" required />
-            <input id="reg-password" placeholder="Parolă" type="password" required />
-            <div style="display:flex;gap:8px">
-              <button id="do-register" type="button">Creează cont</button>
-              <button id="hide-register" type="button" style="background:#888">Anulează</button>
-            </div>
-            <div id="reg-msg" class="muted" style="margin-top:6px"></div>
-          </form>
-        </div>
+<div id="login-area">
+  <h2>Login / Înregistrare</h2>
+  <input type="text" id="username" placeholder="Username"><br>
+  <input type="password" id="password" placeholder="Parolă"><br>
+  <button id="login-btn">Login</button>
+  <button id="register-btn">Înregistrează</button>
+  <div id="login-msg" style="color:red"></div>
+</div>
 
-        <div id="logged" style="display:none">
-          <p class="muted">Te-ai logat ca <strong id="me-username"></strong></p>
-          <div style="display:flex;gap:8px;margin-top:6px">
-            <button id="logout">Deconectează</button>
-            <button id="delete-account" class="danger">Șterge cont</button>
-          </div>
-          <div style="margin-top:10px" id="user-stats">
-            <div class="muted">Highscore: <strong id="user-highscore">0</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col" id="game-col">
-        <div id="game-area">
-          <div id="canvas-wrap">
-            <div id="hud">
-              <div class="chip">Scor: <strong id="score">0</strong></div>
-              <div class="chip">Timp: <strong id="timer">30</strong>s</div>
-              <div class="controls">
-                <button id="start-btn">Start</button>
-                <button id="reset-btn" style="background:#6c757d">Reset</button>
-              </div>
-            </div>
-            <canvas id="game" width="640" height="360"></canvas>
-            <div class="muted">Click pe pătratul galben ca să aduni puncte. Jucătorii sunt locali — scorurile rămân în browser.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <footer>
-      Joc demo — stocare simplă cu <code>localStorage</code>. Parolele sunt salvatate ca SHA-256 (WebCrypto).
-    </footer>
+<div id="game-area" style="display:none;">
+  <h2>🏃‍♂️ Runner Multiplayer</h2>
+  <canvas id="game-canvas" width="600" height="300"></canvas>
+  <div>Scor: <span id="score">0</span> | Timp: <span id="time">0</span>s | Nivel: <span id="level">1</span> | Rang: <span id="rank">Novice</span></div>
+  <div id="leaderboard">
+    <h3>Leaderboard</h3>
+    <ul id="lb-list"></ul>
   </div>
+  <button id="logout-btn">Logout</button>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-/* ===========================
-   Utilitare: hashing (SHA-256)
-   =========================== */
-async function sha256Hex(str){
-  const utf8 = new TextEncoder().encode(str);
-  const hash = await crypto.subtle.digest('SHA-256', utf8);
-  const arr = Array.from(new Uint8Array(hash));
-  return arr.map(b => b.toString(16).padStart(2,'0')).join('');
-}
+// 🔹 Config Firebase (înlocuiește cu valorile tale)
+const firebaseConfig = {
+  apiKey: "APIKEY",
+  authDomain: "PROJECTID.firebaseapp.com",
+  databaseURL: "https://PROJECTID.firebaseio.com",
+  projectId: "PROJECTID",
+  storageBucket: "PROJECTID.appspot.com",
+  messagingSenderId: "SENDERID",
+  appId: "APPID"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
 
-/* ===========================
-   Stocare utilizatori (localStorage)
-   Structură: users = { username: { passHash: "...", highscore: 12 } }
-   =========================== */
-const STORAGE_KEY = 'pf_users_v1';
-function loadUsers(){
-  try{
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  }catch(e){ return {}; }
-}
-function saveUsers(u){ localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); }
-
-/* ===========================
-   Elemente UI
-   =========================== */
-const loginForm = document.getElementById('login-form');
-const loginUserInput = document.getElementById('login-username');
-const loginPassInput = document.getElementById('login-password');
-const showRegBtn = document.getElementById('show-register');
-const registerForm = document.getElementById('register-form');
-const regUserInput = document.getElementById('reg-username');
-const regPassInput = document.getElementById('reg-password');
-const doRegBtn = document.getElementById('do-register');
-const hideRegBtn = document.getElementById('hide-register');
-const regMsg = document.getElementById('reg-msg');
-
-const notLogged = document.getElementById('not-logged');
-const logged = document.getElementById('logged');
-const meUsernameEl = document.getElementById('me-username');
-const logoutBtn = document.getElementById('logout');
-const deleteBtn = document.getElementById('delete-account');
-const userHighscoreEl = document.getElementById('user-highscore');
-
-let currentUser = null;
-
-/* ===========================
-   Autentificare / Înregistrare
-   =========================== */
-showRegBtn.addEventListener('click', ()=>{ registerForm.style.display='block'; showRegBtn.disabled=true; });
-hideRegBtn.addEventListener('click', ()=>{ registerForm.style.display='none'; showRegBtn.disabled=false; });
-
-doRegBtn.addEventListener('click', async ()=>{
-  const u = regUserInput.value.trim();
-  const p = regPassInput.value;
-  if(!u || !p){ regMsg.textContent = 'Completează username și parolă.'; return; }
-  const users = loadUsers();
-  if(users[u]){ regMsg.textContent = 'Username deja folosit.'; return; }
-  regMsg.textContent = 'Se creează cont...';
-  const hash = await sha256Hex(p);
-  users[u] = { passHash: hash, highscore: 0 };
-  saveUsers(users);
-  regMsg.textContent = 'Cont creat! Poți să te loghezi.';
-  regUserInput.value=''; regPassInput.value='';
-  registerForm.style.display='none'; showRegBtn.disabled=false;
-});
-
-loginForm.addEventListener('submit', async (ev)=>{
-  ev.preventDefault();
-  const u = loginUserInput.value.trim();
-  const p = loginPassInput.value;
-  if(!u || !p) return alert('Completează ambele câmpuri.');
-  const users = loadUsers();
-  if(!users[u]) return alert('Utilizator inexistent. Creează cont.');
-  const hash = await sha256Hex(p);
-  if(hash !== users[u].passHash) return alert('Parolă greșită.');
-  // success
-  currentUser = u;
-  onLogin();
-  loginUserInput.value=''; loginPassInput.value='';
-});
-
-logoutBtn.addEventListener('click', ()=>{ currentUser=null; onLogout(); });
-
-deleteBtn.addEventListener('click', ()=>{
-  if(!currentUser) return;
-  if(!confirm('Ștergi contul local (nu se poate recupera)?')) return;
-  const users = loadUsers();
-  delete users[currentUser];
-  saveUsers(users);
-  currentUser = null;
-  onLogout();
-  alert('Cont șters.');
-});
-
-/* ===========================
-   UI update on login/logout
-   =========================== */
-function onLogin(){
-  notLogged.style.display='none';
-  logged.style.display='block';
-  meUsernameEl.textContent = currentUser;
-  const users = loadUsers();
-  userHighscoreEl.textContent = users[currentUser]?.highscore || 0;
-}
-function onLogout(){
-  notLogged.style.display='block';
-  logged.style.display='none';
-  meUsernameEl.textContent = '';
-  userHighscoreEl.textContent = '0';
-}
-
-/* ===========================
-   Joc: "prinde pătratul"
-   - canvas 640x360
-   - target apare random, mută la un interval
-   - click pe target +1 punct
-   - timer (30s)
-   - salvează highscore per utilizator
-   =========================== */
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// 🔹 Elemente UI
+const loginArea = document.getElementById('login-area');
+const gameArea = document.getElementById('game-area');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const loginBtn = document.getElementById('login-btn');
+const registerBtn = document.getElementById('register-btn');
+const loginMsg = document.getElementById('login-msg');
+const logoutBtn = document.getElementById('logout-btn');
 const scoreEl = document.getElementById('score');
-const timerEl = document.getElementById('timer');
-const startBtn = document.getElementById('start-btn');
-const resetBtn = document.getElementById('reset-btn');
+const timeEl = document.getElementById('time');
+const levelEl = document.getElementById('level');
+const rankEl = document.getElementById('rank');
+const lbList = document.getElementById('lb-list');
 
+// 🔹 Variabile joc
+let canvas = document.getElementById('game-canvas');
+let ctx = canvas.getContext('2d');
+let player = {x:50,y:250,width:30,height:30,vy:0,onGround:true};
+let obstacles = [];
 let score = 0;
-let timeLeft = 30;
-let gameInterval = null;
-let moveInterval = 900; // ms between moves
-let target = { x:100, y:100, size:48 };
-let running = false;
-let moveTimer = null;
+let timePlayed = 0;
+let level = 1;
+let rank = 'Novice';
+let gameInterval;
 
-function draw(){
-  // clear
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // draw background grid
-  ctx.fillStyle = '#07101a';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  // draw target (square)
-  ctx.fillStyle = '#f6c94d';
-  ctx.fillRect(target.x, target.y, target.size, target.size);
-  // small glow
-  ctx.strokeStyle = 'rgba(246,201,77,0.2)';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(target.x-2, target.y-2, target.size+4, target.size+4);
-}
+// 🔹 Login / Register
+registerBtn.onclick = () => {
+  const u = usernameInput.value.trim();
+  const p = passwordInput.value;
+  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
+  auth.createUserWithEmailAndPassword(u+'@game.com', p)
+    .then(cred=>{
+      db.ref('players/'+cred.user.uid).set({username:u,score:0,time:0,level:1});
+      loginMsg.style.color='green'; loginMsg.textContent='Cont creat!';
+    }).catch(e=>loginMsg.textContent=e.message);
+};
 
-function randomPos(){
-  const padding = 10;
-  const maxX = canvas.width - target.size - padding;
-  const maxY = canvas.height - target.size - padding;
-  target.x = Math.floor(Math.random() * (maxX - padding + 1)) + padding;
-  target.y = Math.floor(Math.random() * (maxY - padding + 1)) + padding;
-}
+loginBtn.onclick = () => {
+  const u = usernameInput.value.trim();
+  const p = passwordInput.value;
+  if(!u || !p){loginMsg.textContent="Completează toate câmpurile"; return;}
+  auth.signInWithEmailAndPassword(u+'@game.com', p)
+    .then(cred=>{
+      loginArea.style.display='none';
+      gameArea.style.display='block';
+      startGame(cred.user.uid,u);
+    }).catch(e=>loginMsg.textContent=e.message);
+};
 
-canvas.addEventListener('click', (e)=>{
-  if(!running) return;
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  if(mx >= target.x && mx <= target.x + target.size && my >= target.y && my <= target.y + target.size){
-    score += 1;
-    scoreEl.textContent = score;
-    // speed up slightly
-    moveInterval = Math.max(220, moveInterval - 20);
-    // immediate move for feedback
-    randomPos();
-    draw();
-  }
+logoutBtn.onclick = () => {
+  auth.signOut();
+  location.reload();
+};
+
+// 🔹 Joc Runner
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space' && player.onGround){player.vy=-8; player.onGround=false;}
 });
 
-function tick(){
-  timeLeft -= 1;
-  timerEl.textContent = timeLeft;
-  if(timeLeft <= 0){
-    endGame();
+function startGame(uid,username){
+  score = 0; timePlayed=0; level=1; rank='Novice';
+  player.y=250; player.vy=0; player.onGround=true;
+  obstacles=[];
+  if(gameInterval) clearInterval(gameInterval);
+  gameInterval = setInterval(gameLoop, 30);
+
+  // Update timp și scor în Firebase
+  setInterval(()=>{
+    timePlayed++;
+    timeEl.textContent=timePlayed;
+    db.ref('players/'+uid).update({score:score,time:timePlayed,level:level});
+    updateRank();
+    updateLeaderboard();
+  },1000);
+}
+
+function gameLoop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Gravity
+  player.vy+=0.5;
+  player.y+=player.vy;
+  if(player.y>250){player.y=250; player.vy=0; player.onGround=true;}
+  // Desenează player
+  ctx.fillStyle='red';
+  ctx.fillRect(player.x,player.y,player.width,player.height);
+  // Obstacole
+  if(Math.random()<0.02){obstacles.push({x:canvas.width,y:250,width:30,height:30});}
+  for(let i=0;i<obstacles.length;i++){
+    obstacles[i].x-=5+level;
+    ctx.fillStyle='black';
+    ctx.fillRect(obstacles[i].x,obstacles[i].y,obstacles[i].width,obstacles[i].height);
+    if(collide(player,obstacles[i])){score=0; obstacles=[]; player.y=250; level=1;}
+    if(obstacles[i].x+obstacles[i].width<0){obstacles.splice(i,1); i--; score+=1; scoreEl.textContent=score;}
   }
+  level = Math.floor(score/20)+1;
+  levelEl.textContent=level;
 }
 
-function startGame(){
-  if(!currentUser){ alert('Trebuie să fii logat ca să începi.'); return; }
-  if(running) return;
-  running = true;
-  score = 0; timeLeft = 30; moveInterval = 900;
-  scoreEl.textContent = score;
-  timerEl.textContent = timeLeft;
-  randomPos();
-  draw();
-  // move target periodically
-  moveTimer = setInterval(()=>{
-    randomPos();
-    draw();
-  }, moveInterval);
-  // countdown
-  gameInterval = setInterval(tick, 1000);
-  // also reduce move interval gradually to make harder — use setInterval updater to adjust
-  // replace moveTimer with dynamic timing using recursive timeout so we can vary interval:
-  if(moveTimer){ clearInterval(moveTimer); moveTimer = null; }
-  (function moveLoop(){
-    if(!running) return;
-    randomPos(); draw();
-    setTimeout(moveLoop, moveInterval);
-  })();
+function collide(a,b){
+  return a.x<a.x+b.width && a.x+a.width>b.x && a.y<a.y+b.height && a.y+a.height>b.y;
 }
 
-function endGame(){
-  running = false;
-  clearInterval(gameInterval); gameInterval = null;
-  // stop movement by setting moveInterval large and it will stop naturally because running=false
-  saveScoreForUser(score);
-  alert('Timpul s-a terminat! Scor: ' + score);
+// 🔹 Ranguri
+function updateRank(){
+  if(score<20) rank='Novice';
+  else if(score<50) rank='Intermediate';
+  else if(score<100) rank='Pro';
+  else rank='Master';
+  rankEl.textContent=rank;
 }
 
-function resetGame(){
-  running = false;
-  clearInterval(gameInterval); gameInterval = null;
-  score = 0; timeLeft = 30; scoreEl.textContent = '0'; timerEl.textContent = '30';
-  randomPos(); draw();
+// 🔹 Leaderboard
+function updateLeaderboard(){
+  db.ref('players').orderByChild('score').limitToLast(5).once('value',snap=>{
+    lbList.innerHTML='';
+    snap.forEach(child=>{
+      let p = child.val();
+      let li = document.createElement('li');
+      li.textContent = `${p.username} - Scor: ${p.score} Timp: ${p.time}s Nivel: ${p.level}`;
+      lbList.prepend(li);
+    });
+  });
 }
-
-/* Save highscore */
-function saveScoreForUser(s){
-  if(!currentUser) return;
-  const users = loadUsers();
-  const u = users[currentUser];
-  if(!u) return;
-  if(s > (u.highscore || 0)){
-    u.highscore = s;
-    saveUsers(users);
-    userHighscoreEl.textContent = s;
-    alert('Record! Highscore actualizat la ' + s);
-  }
-}
-
-/* Buttons */
-startBtn.addEventListener('click', startGame);
-resetBtn.addEventListener('click', resetGame);
-
-/* Init */
-(function init(){
-  // draw initial screen
-  randomPos(); draw();
-  const stored = loadUsers();
-  // try to auto-login last user (optional)
-  const last = localStorage.getItem('pf_last_user');
-  if(last && stored[last]){ currentUser = last; onLogin(); }
-  // update last user when login
-  const origOnLogin = onLogin;
-  onLogin = function(){ localStorage.setItem('pf_last_user', currentUser); origOnLogin(); };
-})();
 </script>
+
 </body>
 </html>
